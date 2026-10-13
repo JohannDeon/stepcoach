@@ -1484,6 +1484,18 @@ function buildStage(T, FX) {
             if (sdist > -11) { p.x += J.fC.x * (-11 - sdist); p.z += J.fC.z * (-11 - sdist); }
           }
         }
+        // les mèches retombent : jamais vers le haut, et la queue de cheval reste derrière la tête (pas de « corne » sur le côté)
+        const hrx = Math.cos(J.headYaw), hrz = -Math.sin(J.headYaw), hfx = Math.sin(J.headYaw), hfz = Math.cos(J.headYaw);
+        for (let i = 1; i < ch.n; i++) {
+          const p = ch.pts[i], q = ch.pts[i - 1];
+          if (p.y > q.y + 1.2) p.y = q.y + 1.2;
+          if (ch.side === 0) {
+            const lx = (p.x - a.x) * hrx + (p.z - a.z) * hrz, lim = 1.5 + 2.2 * i, d = clamp(lx, -lim, lim) - lx;
+            p.x += hrx * d; p.z += hrz * d;
+            const fw = (p.x - a.x) * hfx + (p.z - a.z) * hfz;
+            if (fw > -1) { p.x += hfx * (-1 - fw); p.z += hfz * (-1 - fw); }
+          }
+        }
       });
       st.init = true;
     }
@@ -1680,9 +1692,11 @@ function buildStage(T, FX) {
         const scoop = (ts === 'bra' ? 4.2 : 7) * k * u;
         const topEdge = arc(sTop, 10).map((p, i) => { const s = Math.pow(Math.sin(Math.PI * i / 10), 1.3) * scoop; return { x: p.x + dn.x * s, y: p.y + dn.y * s }; });
         const strapW = (ts === 'bra' ? 0.9 : 1.5) * u;
-        const sTr = sec(trap - 2.2 * k, 0.4);
-        const straps = [[0.24, 0.13], [0.76, 0.87]].map(([t, t2]) => {
-          const a = arcPt(sTop, t), b = arcPt(sTr, t2);
+        // bretelles : partent de l'intérieur du haut (sous le bord échancré) et montent jusqu'au contour de l'épaule
+        const sSh = sec(trap - 1.0 * k, 0.4);
+        const straps = [0.24, 0.76].map(t => {
+          const p0 = arcPt(sTop, t), s = Math.pow(Math.sin(Math.PI * t), 1.3) * scoop + 2.5 * u;
+          const a = { x: p0.x + dn.x * s, y: p0.y + dn.y * s }, b = t < 0.5 ? sSh.L : sSh.Rt;
           return { p: c2 => capsule(c2, a, b, strapW, strapW, 0, 0.4, true, true), m: m.top };
         });
         layer(c, straps, lw * 0.8, true);
