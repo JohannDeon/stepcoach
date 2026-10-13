@@ -2091,15 +2091,10 @@ function buildStage(T, FX) {
       const gH = c.createLinearGradient(0, -18, 0, 14);
       gH.addColorStop(0, mixHex(m.hair.f, m.hair.h, 0.45)); gH.addColorStop(0.32, m.hair.f); gH.addColorStop(1, m.hair.s);
       const hairShape = (p) => layer(c, [{ p, m: m.hair, fill: gH }], lw);
-      if (F.front < -0.2) {                       // vue de dos : la chevelure couvre la tête
-        hairShape(c2 => { capTop(c2, sty); c2.bezierCurveTo(17.2, 12, 12, 19.5, 0, 20.2); c2.bezierCurveTo(-12, 19.5, -17.2, 12, -16.2, 5); c2.closePath(); });
-        if (!sil) { c.strokeStyle = m.hair.l; c.lineWidth = lw * 0.5; c.globalAlpha = 0.45;
-          [-8, -3, 2, 7].forEach(x => { c.beginPath(); c.moveTo(x * 0.3, -15); c.quadraticCurveTo(x, -2, x * 1.1, 16); c.stroke(); }); c.globalAlpha = 1; }
-        if (sty === 'bun') layer(c, [{ p: c2 => c2.arc(0, -18.5, 6.4, 0, Math.PI * 2), m: m.hair, fill: gH }], lw);
-        if (LOOK.band) layer(c, [{ p: c2 => { c2.moveTo(-16.4, -3.5); c2.quadraticCurveTo(0, -1.2, 16.4, -3.5); c2.lineTo(16.4, -0.4); c2.quadraticCurveTo(0, 2.0, -16.4, -0.4); c2.closePath(); }, m: m.band }], lw);
-        c.restore(); return;
-      }
-      const th = F.th, cx = F.side * 4, sh = F.side * 3.5, ny = J.nod;
+      // angle de la tête par rapport à la caméra (0 = de face, ±π = de dos), continu pendant les demi-tours
+      const phi = Math.atan2(F.side, F.front), th = phi, ny = J.nod;
+      const faceOn = Math.cos(phi) > 0.12;
+      const cx = 4 * Math.sin(phi) * Math.max(0, Math.cos(phi) * 0.6 + 0.4), sh = 6 * Math.sin(phi) * Math.max(0, Math.cos(phi));
       // volumes derrière le visage
       if (sty === 'bob') hairShape(c2 => { c2.moveTo(-16.6, 2); c2.bezierCurveTo(-18.8, 12, -17.2, 18.5, -12, 19.8); c2.lineTo(12, 19.8); c2.bezierCurveTo(17.2, 18.5, 18.8, 12, 16.6, 2); c2.closePath(); });
       if (sty === 'curly') hairShape(c2 => { c2.moveTo(-18.5, 0); c2.bezierCurveTo(-21, 10, -18, 17, -12, 17.5); c2.lineTo(12, 17.5); c2.bezierCurveTo(18, 17, 21, 10, 18.5, 0); c2.closePath(); });
@@ -2137,11 +2132,13 @@ function buildStage(T, FX) {
           drawEye(c, 15.8 * Math.sin(a), 5.6 + ny, sd, fs, eo);
         });
         // nez, bouche
+        if (faceOn) {
         const nx = 16.4 * Math.sin(th);
         c.strokeStyle = m.skin.l; c.lineWidth = lw * 0.5; c.globalAlpha = 0.7;
         c.beginPath(); c.moveTo(nx + 0.3, 10.2 + ny); c.quadraticCurveTo(nx + 1.1 + F.side, 11.4 + ny, nx + 0.1, 11.9 + ny); c.stroke();
         c.globalAlpha = 1;
         drawMouth(c, 15.2 * Math.sin(th), 14.9 + ny, J.mouth, Math.cos(th), lw);
+        }
       }
       // chevelure avant (+ petite mèche rebelle)
       const shapes = [{ p: c2 => hairFront(c2, sty, sh), m: m.hair, fill: gH }];
@@ -2171,9 +2168,31 @@ function buildStage(T, FX) {
         });
         c.globalAlpha = 1;
       }
+      // arrière du crâne : quand la tête tourne, les cheveux de derrière apparaissent du côté opposé au visage,
+      // délimités par une ligne de cheveux courbe ; de dos, ils couvrent toute la tête
+      const ap = Math.abs(phi);
+      if (ap > 0.35) {
+        const s2 = Math.sign(phi) || 1, R0 = 16, xb = s2 * R0 * Math.sin(ap - 1.22), Rc = 34, ccx = xb - s2 * Rc;
+        const blob = c2 => { capTop(c2, sty); c2.bezierCurveTo(17.2, 12, 12, 19.8, 0, 20.4); c2.bezierCurveTo(-12, 19.8, -17.2, 12, -16.2, 5); c2.closePath(); };
+        const cover = c2 => { c2.moveTo(ccx + Rc, 2); c2.arc(ccx, 2, Rc, 0, Math.PI * 2); };
+        c.save(); c.beginPath(); cover(c); c.clip();
+        layer(c, [{ p: blob, m: m.hair, fill: gH }], lw);
+        if (!sil) {                                   // mèches qui partent du sommet vers la nuque
+          c.strokeStyle = m.hair.l; c.lineWidth = lw * 0.45; c.globalAlpha = 0.4;
+          [-9, -4, 1, 6, 11].forEach(x => { c.beginPath(); c.moveTo(x * 0.3 - s2 * 2, -15); c.quadraticCurveTo(x - s2 * 2, -2, x * 1.05 - s2 * 3, 17); c.stroke(); });
+          c.globalAlpha = 1;
+        }
+        c.restore();
+        if (ap < 2.9) {                               // ligne de cheveux (bord de la zone couverte)
+          c.save(); c.beginPath(); blob(c); c.clip();
+          c.beginPath(); cover(c); c.strokeStyle = m.hair.l; c.lineWidth = lw * 2; c.stroke();
+          c.restore();
+        }
+        if (sty === 'bun' && ap > 1.6) layer(c, [{ p: c2 => c2.arc(0, -19, 6.6, 0, Math.PI * 2), m: m.hair, fill: gH }], lw);
+      }
       // accessoires
       if (LOOK.band) layer(c, [{ p: c2 => { c2.moveTo(-16.6, -3.6); c2.quadraticCurveTo(sh * 0.4, -8.2, 16.6, -3.6); c2.lineTo(16.6, -0.6); c2.quadraticCurveTo(sh * 0.4, -5.0, -16.6, -0.6); c2.closePath(); }, m: m.band }], lw);
-      if (LOOK.glasses === 'glasses' && !sil) {
+      if (LOOK.glasses === 'glasses' && !sil && faceOn) {
         c.strokeStyle = m.m === 'neon' ? '#f4ecff' : '#2a1736'; c.lineWidth = lw * 0.7; c.fillStyle = 'rgba(200,220,255,0.12)';
         const pts = [-1, 1].map(sd => { const a = sd * 0.41 + th; return [15.8 * Math.sin(a), Math.cos(a)]; });
         pts.forEach(([gx, fs]) => { if (fs < 0.15) return; c.beginPath(); c.ellipse(gx, 5.6 + ny, 5.4 * fs, 4.9, 0, 0, Math.PI * 2); c.fill(); c.stroke(); });
