@@ -359,7 +359,7 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
   </main>
 </div>
 
-<script src="config.js"></script>
+<script src="config.js?v=4"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
 (() => {
@@ -3424,7 +3424,9 @@ async function searchItunes(q) {
    ════════════════════════════════════════════════════════════ */
 const FILE_CFG = window.STEPCOACH_CONFIG || {};
 const SAVED = store.get('cfg', {});
-const CFG = { key: SAVED.key || FILE_CFG.apiKey || '', client: SAVED.client || FILE_CFG.oauthClientId || '' };
+// identifiant client OAuth de StepCoach (public) : écrit ici aussi, au cas où une ancienne copie de config.js serait en cache
+const DEFAULT_CLIENT = '580482126850-optneno2slbhm0jmlaeq7rrg3tdvjv23.apps.googleusercontent.com';
+const CFG = { key: SAVED.key || FILE_CFG.apiKey || '', client: SAVED.client || FILE_CFG.oauthClientId || DEFAULT_CLIENT };
 
 function loadScript(src) {
   return new Promise((res, rej) => {
