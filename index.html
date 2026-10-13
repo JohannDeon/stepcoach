@@ -276,18 +276,7 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
             <div class="row">
               <button id="gLogin">Se connecter avec Google</button>
               <span id="gState"></span>
-              <button class="gear" id="gear" title="Paramètres YouTube">⚙</button>
             </div>
-            <details id="cfg" hidden>
-              <summary>Paramètres YouTube</summary>
-              <ol>
-                <li>Console Google Cloud → <b>Identifiants</b> → clé API et ID client OAuth.</li>
-                <li>ID client OAuth de type <b>Application Web</b>, origine autorisée <code id="origin"></code>.</li>
-              </ol>
-              <label>Clé API <span id="keyState"></span><input type="password" id="cfgKey" placeholder="Laisser vide pour garder la clé enregistrée" autocomplete="off"></label>
-              <label>ID client OAuth <span id="clientState"></span><input type="password" id="cfgClient" placeholder="Laisser vide pour garder l'ID enregistré" autocomplete="off"></label>
-              <button id="cfgSave" type="button">Enregistrer</button>
-            </details>
             <div class="list" id="ytResults"><div class="empty">Cherche un titre, colle un lien de vidéo ou de playlist, ou connecte-toi pour retrouver tes playlists.</div></div>
           </div>
 
@@ -3423,10 +3412,9 @@ async function searchItunes(q) {
    9. Source YouTube : lecteur intégré + tempo (iTunes ou direct)
    ════════════════════════════════════════════════════════════ */
 const FILE_CFG = window.STEPCOACH_CONFIG || {};
-const SAVED = store.get('cfg', {});
 // identifiant client OAuth de StepCoach (public) : écrit ici aussi, au cas où une ancienne copie de config.js serait en cache
 const DEFAULT_CLIENT = '580482126850-optneno2slbhm0jmlaeq7rrg3tdvjv23.apps.googleusercontent.com';
-const CFG = { key: SAVED.key || FILE_CFG.apiKey || '', client: SAVED.client || FILE_CFG.oauthClientId || DEFAULT_CLIENT };
+const CFG = { key: FILE_CFG.apiKey || '', client: FILE_CFG.oauthClientId || DEFAULT_CLIENT };
 
 function loadScript(src) {
   return new Promise((res, rej) => {
@@ -3601,7 +3589,7 @@ async function ytSearch(q) {
     if (link.v) return playYT({ ids: [link.v] });
   }
   if (!CFG.key) {
-    ytBox.innerHTML = '<div class="empty">Pour <b>chercher</b> par nom, ajoute une clé API dans ⚙. En attendant, colle un <b>lien</b> de vidéo ou de playlist.</div>';
+    ytBox.innerHTML = '<div class="empty">La recherche par nom est indisponible pour le moment. En attendant, colle un <b>lien</b> de vidéo ou de playlist.</div>';
     return;
   }
   ytBox.innerHTML = '<div class="empty">Recherche…</div>';
@@ -3912,22 +3900,6 @@ $('#ytForm').addEventListener('submit', e => { e.preventDefault(); const q = $('
   $('#chips').appendChild(b);
 });
 
-// paramètres masqués : la clé n'est jamais affichée
-$('#origin').textContent = location.origin;
-const cfgState = () => {
-  $('#keyState').textContent = CFG.key ? '· enregistrée ✓' : '· manquante';
-  $('#clientState').textContent = CFG.client ? '· enregistré ✓' : '· manquant';
-};
-cfgState();
-$('#gear').onclick = () => { $('#cfg').hidden = !$('#cfg').hidden; $('#cfg').open = true; };
-$('#cfgSave').onclick = () => {
-  const k = $('#cfgKey').value.trim(), cl = $('#cfgClient').value.trim();
-  if (k) CFG.key = k;
-  if (cl) CFG.client = cl;
-  store.set('cfg', { key: CFG.key, client: CFG.client });
-  $('#cfgKey').value = ''; $('#cfgClient').value = '';
-  cfgState(); $('#cfg').hidden = true;
-};
 $('#gLogin').onclick = googleLogin;
 $('#ytAdd').onclick = () => { const box = $('#ytAddBox'); box.innerHTML ? (box.innerHTML = '') : playlistPicker(box, Y.videoId, Y.title); };
 $('#ytAlt').onclick = () => { Y.ci = (Y.ci + 1) % Y.cands.length; tryCandidate(); };
