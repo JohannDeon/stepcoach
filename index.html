@@ -183,12 +183,30 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
 .plpick form{display:flex;gap:6px}
 
 @media (max-width:640px){
-  #coach{top:auto;bottom:92px;left:10px;right:10px;width:auto}
+  .bar{top:10px;left:10px;right:10px}
+  .logo{font-size:22px}
+  .logo span{display:none}
+  .nav{gap:2px;padding:4px}
+  .nav button{padding:8px 13px}
+  .badge{top:58px;left:10px;padding:6px 10px;font-size:11.5px;max-width:60vw}
+  .badge b{font-size:13.5px}
+  #coach{top:auto;bottom:8px;left:8px;right:8px;width:auto;padding:8px 10px;gap:6px}
+  .app.training .dock{display:none}
+  .app.training .ytbox{display:none}
+  #coach .ctop span{font-size:11px}
+  .pstats b{font-size:16px}
+  #coach .ccount{font-size:32px;min-width:40px}
+  #coach .ctext{font-size:14px}
+  #coach .ctext small{font-size:12px}
+  #coach .cbtns button{padding:5px 8px;font-size:12px}
+  #coach .legend{display:none}
+  .ytbox{left:8px;right:8px;width:auto;bottom:88px;grid-template-columns:42% 1fr;align-items:center;padding:6px}
+  .ytside{padding:0}
+  .drawer{top:58px;right:6px;left:6px;width:auto;bottom:6px}
+  #bubble{max-width:180px;font-size:13.5px}
   .nav button span{display:none}
   .dock{gap:10px;padding:8px 10px}
   .playbtn{width:46px;height:46px}
-  .ytbox{bottom:92px;width:46vw}
-  .badge{top:62px}
 }
 </style>
 </head>
@@ -200,7 +218,7 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
     <div id="stageErr" hidden></div>
 
     <header class="bar">
-      <div class="logo">👟 StepCoach</div>
+      <div class="logo">👟 <span>StepCoach</span></div>
       <nav class="nav glass">
         <button data-open="music" class="hint">🎵 <span>Musique</span></button>
         <button data-open="choreo">💃 <span>Pas</span></button>
@@ -2765,7 +2783,7 @@ function buildStage(T, FX) {
   }
 
   let sch = { c1: '#2a0a5e', c2: '#ff2d95', c3: '#ffe14d' };
-  let stepMarks = null;
+  let stepMarks = null, camX = 0;
   function render(P) {
     // qualité adaptative : si la machine peine, on baisse la définition ; si elle est à l'aise, on la remonte
     const nowMs = performance.now();
@@ -2833,12 +2851,16 @@ function buildStage(T, FX) {
 
     // caméra : légère respiration au tempo
     // cadrage : le personnage occupe presque toute la hauteur, quel que soit le format de l'écran
-    const asp = viewW / viewH;
-    const dist = Math.max(615, 500 / (0.536 * asp));
-    camera.fov = 30 - 0.8 * pulse * amt;
+    const asp = viewW / viewH, portrait = asp < 0.95;
+    // téléphone (portrait) : caméra plus proche, cadrée sur la prof et le step, qui la suit quand elle se déplace
+    const fov0 = portrait ? 34 : 30;
+    const dist = portrait ? Math.max(600, 100 / (Math.tan(fov0 * Math.PI / 360) * asp)) : Math.max(615, 500 / (0.536 * asp));
+    const tx = portrait ? clamp(active.head.x * 0.85, -170, 170) : 0;
+    camX += (tx - camX) * Math.min(1, dt * 2.5);
+    camera.fov = fov0 - 0.8 * pulse * amt;
     insetNow += (drawerInset - insetNow) * Math.min(1, dt * 7);
-    camera.position.set(Math.sin(b * 0.2) * 28 * amt, 160 + 4 * pulse * amt, dist);
-    camera.lookAt(0, 124, 0);
+    camera.position.set(camX + Math.sin(b * 0.2) * (portrait ? 12 : 28) * amt, 160 + 4 * pulse * amt, dist);
+    camera.lookAt(camX, portrait ? 114 : 124, 0);
     camera.setViewOffset(viewW, viewH, insetNow * 0.5, Math.min(56, viewH * 0.07), viewW, viewH);
     camera.updateProjectionMatrix();
 
