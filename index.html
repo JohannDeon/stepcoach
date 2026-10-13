@@ -146,7 +146,44 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
 .chk{display:flex;align-items:center;gap:8px;font-size:13.5px;margin:6px 0}
 .chk input[type=checkbox]{accent-color:var(--pink);width:17px;height:17px}
 
+/* mode entraînement */
+.drawer select{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:9px 10px;font:inherit;margin-bottom:6px}
+.drawer select option,.drawer select optgroup{background:#1a1036;color:var(--ink)}
+.train{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+#coach{position:absolute;left:16px;top:66px;width:min(360px,40vw);z-index:6;padding:12px 14px;display:grid;gap:8px}
+.app.training .badge{display:none}
+#coach .ctop{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+#coach .ctop b{font-size:15px}
+#coach .ctop span{color:var(--mute);font-size:12.5px;text-align:right}
+#coach .cmain{display:flex;gap:14px;align-items:center}
+#coach .ccount{font-size:42px;font-weight:800;min-width:58px;text-align:center;line-height:1;
+  background:linear-gradient(135deg,var(--pink),var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+#coach .ctext{font-size:16px;font-weight:650;line-height:1.3}
+#coach .ctext small{display:block;color:var(--mute);font-weight:500;font-size:13px;margin-top:4px}
+#coach .cbtns{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#coach .cbtns button{font-size:12.5px;padding:6px 10px}
+#coach .cbtns span{color:var(--mute);font-size:12.5px;min-width:70px;text-align:center}
+#coach .legend{font-size:11.5px;color:var(--mute)}
+#coach .lg{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:-1px;margin:0 4px 0 8px}
+/* progression */
+.prog{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.pstats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center;margin:4px 0 8px}
+.pstats b{display:block;font-size:19px;font-variant-numeric:tabular-nums}
+.pstats small{color:var(--mute);font-size:11px}
+.pbar{height:7px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden}
+.pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--pink))}
+.psync{color:var(--mute);font-size:12px;margin-top:8px}
+.mv .lv{font-size:11px;padding:2px 7px;border-radius:99px;white-space:nowrap}
+/* playlists Google */
+.resw{display:flex;gap:6px;align-items:center}
+.resw .res{flex:1;min-width:0}
+.addpl{flex:none;width:38px;height:38px;padding:0;border-radius:12px;font-size:18px}
+.plpick{background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:12px;padding:8px;display:grid;gap:6px}
+.plpick .chips{margin:0}
+.plpick form{display:flex;gap:6px}
+
 @media (max-width:640px){
+  #coach{top:auto;bottom:92px;left:10px;right:10px;width:auto}
   .nav button span{display:none}
   .dock{gap:10px;padding:8px 10px}
   .playbtn{width:46px;height:46px}
@@ -174,11 +211,26 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
 
     <div class="badge glass"><b><span id="moveName">Échauffement</span><i id="moveLvl"></i></b><span id="moveNext">Choisis un morceau →</span></div>
 
+    <div id="coach" class="glass" hidden>
+      <div class="ctop"><b id="cName"></b><span id="cRep"></span></div>
+      <div class="cmain"><div class="ccount" id="cCount">5</div><div class="ctext"><div id="cNow"></div><small id="cNext"></small></div></div>
+      <div class="cbtns">
+        <button id="cPrev" title="Temps précédent">◀</button>
+        <button id="cPause">⏸ Pause</button>
+        <button id="cStepB" title="Avancer d'un temps (espace)">Temps suivant ▶</button>
+        <button id="cSlow" title="Plus lent">−</button><span id="cBpm"></span><button id="cFast" title="Plus rapide">+</button>
+        <button id="cStop" style="margin-left:auto">✕ Quitter</button>
+      </div>
+      <div class="legend" id="cLegend">Empreintes :<span class="lg" style="background:#27e1ff"></span>pied gauche<span class="lg" style="background:#ff3d9a"></span>pied droit · tu fais comme dans un miroir</div>
+    </div>
+
     <div class="ytbox glass" id="ytbox" hidden>
       <div class="ytframe"><div id="ytplayer"></div></div>
       <div class="ytside">
         <div id="ytinfo"></div>
         <button id="ytAlt" hidden>↻ Autre version du morceau</button>
+        <button id="ytAdd" hidden>＋ Ajouter à une playlist</button>
+        <div id="ytAddBox"></div>
       </div>
     </div>
 
@@ -252,6 +304,15 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
 
         <!-- ───────── Pas ───────── -->
         <div id="tab-choreo" hidden>
+          <div class="opt train"><h4>🎓 Mode entraînement</h4>
+            <select id="trMove" aria-label="Pas à apprendre"></select>
+            <div class="chips" id="trSpeed" style="margin:2px 0 4px"></div>
+            <label class="chk"><input type="checkbox" id="trStep"> Pas à pas : elle attend que tu avances (bouton ou barre d'espace)</label>
+            <label class="chk"><input type="checkbox" id="trMarks" checked> Empreintes des pieds sur le sol et le step</label>
+            <button class="primary" id="trGo" style="width:100%;margin-top:4px">▶ Lancer l'entraînement</button>
+            <p class="note" style="margin-top:8px">Le pas est montré lentement, côté droit puis côté gauche, avec un décompte, la consigne à chaque temps et un métronome.</p>
+          </div>
+          <div class="opt prog"><h4>📈 Ma progression</h4><div id="progBox"></div></div>
           <div class="opt"><h4>Le step</h4><div id="boardBox"></div></div>
           <div class="opt"><h4>Position par rapport au step</h4><div class="chips" id="zoneChips" style="margin:0"></div></div>
           <div class="opt"><h4>Variation des pas</h4><div class="chips" id="varChips" style="margin:0"></div><p class="note" id="varDesc" style="margin:6px 0 0"></p></div>
@@ -2681,6 +2742,7 @@ function buildStage(T, FX) {
   }
 
   let sch = { c1: '#2a0a5e', c2: '#ff2d95', c3: '#ffe14d' };
+  let stepMarks = null;
   function render(P) {
     // qualité adaptative : si la machine peine, on baisse la définition ; si elle est à l'aise, on la remonte
     const nowMs = performance.now();
@@ -2728,6 +2790,22 @@ function buildStage(T, FX) {
     anime.group.visible = !usePro;
     if (proRig) { proRig.group.visible = usePro; if (usePro) proRig.setMode(LOOK.render); }
     const active = usePro ? proRig : anime;
+    // empreintes du mode entraînement (pied gauche cyan, pied droit rose)
+    if (!stepMarks) {
+      stepMarks = ['#27e1ff', '#ff3d9a'].map(col => {
+        const gm = new T.Group();
+        const ring = new T.Mesh(new T.RingGeometry(8.5, 12, 48), new T.MeshBasicMaterial({ color: new T.Color(col).multiplyScalar(1.35), transparent: true, opacity: 1, depthWrite: false, side: T.DoubleSide, toneMapped: false }));
+        const fill = new T.Mesh(new T.CircleGeometry(8.5, 48), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.45, depthWrite: false, side: T.DoubleSide, blending: T.AdditiveBlending }));
+        [ring, fill].forEach(m => { m.rotation.x = -Math.PI / 2; m.renderOrder = 3; gm.add(m); });
+        gm.scale.set(1, 1, 1.5); gm.visible = false; scene.add(gm);
+        return gm;
+      });
+    }
+    stepMarks.forEach((gm, i) => {
+      const mk = P.marks && P.marks[i];
+      gm.visible = !!mk;
+      if (mk) { gm.position.set(mk.x, mk.y + 0.6, mk.z); const s = 1 + 0.12 * Math.sin(P.tsec * 6); gm.scale.set(s, 1, 1.5 * s); }
+    });
     active.update(P);
 
     // caméra : légère respiration au tempo
@@ -2805,6 +2883,155 @@ function curPos() {
   return null;
 }
 function liveActive() { return LIVE.on && LIVE.anchor !== null && LIVE.locked && LIVE.level > 0.004; }
+// progression (enregistrée sur l'appareil, et sur le compte Google si connecté)
+const PROG = Object.assign({ danceSec: 0, days: [], moves: {}, updated: 0 }, store.get('progress', {}));
+const today = () => new Date().toISOString().slice(0, 10);
+const moveLevel = k => { const m = PROG.moves[k]; if (!m || !m.reps) return 0; return m.reps >= 8 && (m.best || 0) >= 100 ? 3 : m.reps >= 4 ? 2 : 1; };
+const MOVE_LV = [null, ['Découvert', '#ffd23d'], ['En progrès', '#27e1ff'], ['Maîtrisé ✓', '#5dff9c']];
+let progDirty = 0;
+function progTouch(force) { PROG.updated = Date.now(); if (force || ++progDirty > 20) { progDirty = 0; store.set('progress', PROG); } }
+function streak() {
+  const set = new Set(PROG.days); let n = 0; const d = new Date();
+  if (!set.has(d.toISOString().slice(0, 10))) d.setDate(d.getDate() - 1);       // la série tient jusqu'à demain
+  while (set.has(d.toISOString().slice(0, 10))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+function renderProgress() {
+  const box = $('#progBox'); if (!box) return;
+  const mastered = MOVE_KEYS.filter(k => moveLevel(k) === 3).length, seen = MOVE_KEYS.filter(k => moveLevel(k) > 0).length;
+  const mins = Math.floor(PROG.danceSec / 60), h = Math.floor(mins / 60);
+  box.innerHTML = `<div class="pstats"><div><b>${h ? h + ' h ' + (mins % 60) : mins} min</b><small>dansées</small></div>` +
+    `<div><b>${PROG.days.length}</b><small>jours actifs</small></div><div><b>${streak()} 🔥</b><small>jours d'affilée</small></div>` +
+    `<div><b>${mastered}/${MOVE_KEYS.length}</b><small>pas maîtrisés</small></div></div>` +
+    `<div class="pbar"><i style="width:${Math.round(100 * (mastered + 0.4 * (seen - mastered)) / MOVE_KEYS.length)}%"></i></div>` +
+    `<p class="note" style="margin-top:8px">Un pas est <b>maîtrisé</b> après 8 répétitions en entraînement, dont une à 100 BPM ou plus.</p>` +
+    `<div class="psync" id="pSync">${cloudStatus()}</div>`;
+}
+function cloudStatus() {
+  if (typeof GG === 'undefined' || !GG.token) return '💾 Enregistré sur cet appareil. Connecte-toi avec Google (onglet Musique) pour retrouver ton personnage et ta progression partout.';
+  return CLOUD.state === 'saving' ? '☁ Sauvegarde sur ton compte Google…' : CLOUD.state === 'error' ? '⚠️ Sauvegarde Google impossible : ' + esc(CLOUD.err || '') :
+         '☁ Personnage et progression sauvegardés sur ton compte Google' + (GG.name ? ' (' + esc(GG.name) + ')' : '') + '.';
+}
+const TRAIN = { on: false, move: store.get('trMove', 'basic'), bpm: store.get('trBpm', 80), step: false, marks: true, until: 0, lastIdx: null };
+if (!MOVES[TRAIN.move]) TRAIN.move = 'basic';
+const TR_SPEEDS = [[60, 'Très lent'], [80, 'Lent'], [100, 'Moyen'], [125, 'Vitesse réelle']];
+const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+// consigne d'un pied entre deux poses (côté vu à l'écran : on fait comme dans un miroir)
+function footCue(a, b, side) {
+  const x0 = a[0], y0 = a[1], z0 = a[2] || 0, x1 = b[0], y1 = b[1], z1 = b[2] || 0;
+  if (Math.abs(x1 - x0) < 3 && Math.abs(y1 - y0) < 3 && Math.abs(z1 - z0) < 0.1) return null;
+  const P = 'pied ' + side;
+  const onTop = (x, z) => Math.abs(x) > 45 ? ` au bout ${x < 0 ? 'gauche' : 'droit'} du step` : z > 0.3 ? ' sur le bord avant du step' : ' sur le step';
+  const ground = (x, z) => z > 0.5 ? ' devant le step' : z < -1.2 ? ' loin derrière (fente)' : Math.abs(z) < 0.6 && Math.abs(x) > 100 ? ' au bout du step' : Math.abs(x) > 40 ? ' sur le côté' : '';
+  if (y1 > STEP + 12) {
+    if (z1 > 0.4) return `coup de pied ${side} devant`;
+    if (z1 < -0.8) return `jambe ${side} tendue vers l'arrière`;
+    if (z1 < -0.3) return `talon ${side} vers la fesse`;
+    if (Math.abs(x1) > 60) return `jambe ${side} levée sur le côté`;
+    return `genou ${side} levé`;
+  }
+  if (y1 > STEP + 1) return `${P} tape le step`;
+  if (Math.abs(y1 - STEP) <= 1) return (y0 < STEP - 1 ? `${P} monte` : `${P} se déplace`) + onTop(x1, z1);
+  if (y1 > 1) return z1 < -1 ? `pointe du ${P} derrière` : `petite levée du ${P}`;
+  if (y0 <= 1 && Math.abs(z1 - z0) < 0.3 && Math.abs(x1) > 40 && Math.abs(x1) > Math.abs(x0) + 15 && Math.abs(x1) < 100) return `fente du ${P} sur le côté`;
+  if (y0 <= 1 && Math.abs(z1 - z0) < 0.3 && Math.abs(x1) < Math.abs(x0) - 15 && Math.abs(x0) < 100) return `${P} revient au centre`;
+  return (y0 > 1 ? `${P} redescend au sol` : `${P} se déplace au sol`) + ground(x1, z1);
+}
+function poseCue(a, b) {
+  const l = footCue(a.l, b.l, 'gauche'), r = footCue(a.r, b.r, 'droit');
+  const turn = Math.abs((b.turn || 0) - (a.turn || 0)) > 0.01 ? ' · et tourne d’un quart de tour' : '';
+  const on = f => Math.abs(f[1] - STEP) <= 1, down = f => f[1] <= 1, wide = p => Math.abs(p.r[0] - p.l[0]) > 60;
+  if (l && r) {                                   // les deux pieds bougent ensemble : c'est un saut
+    if (on(b.l) && on(b.r) && down(a.l) && down(a.r)) return `Saute sur le step, pieds ${wide(b) ? 'écartés' : 'joints'}` + turn;
+    if (down(b.l) && down(b.r) && on(a.l) && on(a.r)) return 'Redescends au sol en sautant' + turn;
+    if (on(b.l) && on(b.r) && on(a.l) && on(a.r)) return (wide(b) ? 'Saute en écartant les pieds' : 'Saute en serrant les pieds') + ' sur le step' + turn;
+    return cap(l) + ' · ' + r + turn;
+  }
+  if (!l && !r) return (down(b.l) && down(b.r) ? 'On marque le temps, pieds au sol' : 'On garde la position') + turn;
+  return cap(l || r) + turn;
+}
+function buildTrainSeq() {
+  const m = MOVES[TRAIN.move], style = m.styles[0];
+  const neutral = { l: G(-NX), r: G(NX), al: A.hip, ar: A.hip, turn: 0 };
+  SEQ = [];
+  ['5', '6', '7', '8'].forEach((c, i) => SEQ.push({ pose: neutral, name: 'Prépare-toi', lvl: m.lvl, style: 'hips', next: m.name, j: i, count: c, prep: true }));
+  ringFlip = false;
+  [0, 1].forEach(side => {
+    const add = (poses, name) => poses.forEach((p, j) => SEQ.push({ pose: p, name, lvl: 0, style: 'alt', next: m.name, j, count: '→', travel: true, side }));
+    if (m.fixed) add(transition('back', side ? mirrorLane(m.startLane) : m.startLane), 'Déplacement');
+    for (let rep = 0; rep < 2; rep++) m.beats.forEach((bt, j) => {
+      const [al, ar] = ARMS[style](j % 4);
+      let p = { l: bt[0], r: bt[1], al, ar, turn: bt[2] || 0 };
+      if (side) p = mirror(p);
+      SEQ.push({ pose: p, name: m.name, lvl: m.lvl, style, next: m.name, j, count: String(j + 1), side, rep });
+    });
+    if (m.fixed) add(transition(side ? mirrorLane(m.endLane) : m.endLane, 'back'), 'Déplacement');
+  });
+  for (let i = 0; i < SEQ.length; i++) if (!SEQ[i].prep) SEQ[i].cue = poseCue(SEQ[(i - 1 + SEQ.length) % SEQ.length].pose, SEQ[i].pose);
+  SEQ.forEach(e => { if (e.prep) e.cue = e.count === '8' ? 'C\'est parti !' : 'Prépare-toi, pieds derrière le step'; });
+  S.lastIdx = null;
+}
+function renderTrain() {
+  const sel = $('#trMove'); if (!sel) return;
+  sel.innerHTML = LEVELS.map(L => `<optgroup label="${L.stars} ${L.name}">` +
+    MOVE_KEYS.filter(k => MOVES[k].lvl === L.n).map(k => `<option value="${k}" ${k === TRAIN.move ? 'selected' : ''}>${esc(MOVES[k].name)}${moveLevel(k) ? ' — ' + MOVE_LV[moveLevel(k)][0] : ''}</option>`).join('') + '</optgroup>').join('');
+  sel.onchange = () => { TRAIN.move = sel.value; store.set('trMove', TRAIN.move); if (TRAIN.on) startTraining(); };
+  const sp = $('#trSpeed'); sp.innerHTML = '';
+  TR_SPEEDS.forEach(([v, label]) => {
+    const b = document.createElement('button'); b.textContent = `${label} · ${v}`; b.className = TRAIN.bpm === v ? 'on' : '';
+    b.onclick = () => { TRAIN.bpm = v; store.set('trBpm', v); if (TRAIN.on) setBpm(v, false); renderTrain(); };
+    sp.appendChild(b);
+  });
+  $('#trStep').checked = TRAIN.step; $('#trMarks').checked = TRAIN.marks;
+  $('#trGo').textContent = TRAIN.on ? '■ Arrêter l\'entraînement' : '▶ Lancer l\'entraînement';
+}
+function startTraining() {
+  if (S.mode === 'yt') leaveYT();
+  if (S.mode === 'preview') { stopSong(); S.song = null; }
+  if (LIVE.on) stopLive(true);
+  ensureCtx();
+  S.mode = 'idle'; S.offset = 0;
+  TRAIN.on = true; TRAIN.lastIdx = null;
+  buildTrainSeq();
+  setBpm(TRAIN.bpm, false);
+  S.idleB = TRAIN.step ? 3 : 0; TRAIN.until = 3; S.bs = undefined;      // pas à pas : prête, le 1er appui part au premier « suivant »
+  S.metronome = true;
+  $('#coach').hidden = false; $('.app').classList.add('training'); closeDrawer(); renderTrain(); syncPlayBtn();
+  setNow(`🎓 Entraînement : <b>${esc(MOVES[TRAIN.move].name)}</b> <small>· ${TRAIN.bpm} BPM</small>`);
+}
+function stopTraining() {
+  TRAIN.on = false; S.metronome = false; $('#coach').hidden = true; $('.app').classList.remove('training');
+  buildSeq(); renderTrain(); syncPlayBtn();
+  setNow('Aucune musique : elle t\'attend. Choisis un morceau pour commencer 🎵');
+}
+function trainNext() { TRAIN.step = true; TRAIN.until = Math.floor(S.idleB + 1e-6) + 1; renderTrain(); }
+function trainBeatDone(idx) {
+  const e = seqAt(idx), m = MOVES[TRAIN.move];
+  if (!e || e.prep || e.travel || e.j !== m.beats.length - 1) return;
+  const r = PROG.moves[TRAIN.move] || (PROG.moves[TRAIN.move] = { reps: 0, best: 0 });
+  const before = moveLevel(TRAIN.move);
+  r.reps++; r.best = Math.max(r.best || 0, Math.round(S.bpm)); r.last = Date.now();
+  progTouch(true); renderProgress(); cloudSaveSoon();
+  if (moveLevel(TRAIN.move) > before) { BUB.kind = 'cheer'; BUB.text = `${m.name} : ${MOVE_LV[moveLevel(TRAIN.move)][0].replace(' ✓', '')} ! 🎉`; BUB.start = performance.now() / 1000; BUB.end = BUB.start + 3; renderChoreo(); renderTrain(); }
+}
+function updateCoach(idx) {
+  const cur = seqAt(idx + 1), nxt = seqAt(idx + 2), m = MOVES[TRAIN.move];
+  $('#cName').textContent = m.name;
+  $('#cRep').textContent = cur.prep ? 'Décompte' : cur.travel ? 'Placement' :
+    `En commençant du pied ${cur.side ? 'gauche' : 'droit'} · ${cur.rep + 1}/2 · bras : ${ARM_NAMES[cur.style]}`;
+  $('#cCount').textContent = cur.count;
+  $('#cNow').textContent = cur.cue;
+  $('#cNext').textContent = 'Ensuite : ' + (nxt.cue || '');
+  $('#cBpm').textContent = Math.round(S.bpm) + ' BPM';
+  $('#cPause').textContent = TRAIN.step ? '▶ Reprendre' : '⏸ Pause';
+  $('#cLegend').hidden = !TRAIN.marks;
+}
+// empreinte du prochain appui (sur le sol ou sur le step) ; rien si le pied reste en l'air
+function footMark(f) {
+  const y = f[1];
+  if (y > 1 && Math.abs(y - STEP) > 1) return null;
+  return { x: bx(f[0]), y: y > 1 ? BD.h : 0, z: (f[2] || 0) * (BD.hz + 18) };
+}
 function beatPos(dt, now) {
   const Pd = 60 / S.bpm;
   if (liveActive()) {
@@ -2818,6 +3045,7 @@ function beatPos(dt, now) {
     if (T === null) S.idleB += dt / Pd; else S.idleB = (T - S.t0) / Pd;
   } else {
     S.idleB += dt / Pd;
+    if (TRAIN.on && TRAIN.step) S.idleB = Math.min(S.idleB, TRAIN.until);      // pas à pas : elle attend le signal
   }
   return S.idleB + S.offset;
 }
@@ -3084,6 +3312,15 @@ function frame(now) {
     S.lastIdx = idx;
   }
 
+  if (TRAIN.on && idx !== TRAIN.lastIdx) { if (TRAIN.lastIdx !== null && idx === TRAIN.lastIdx + 1) trainBeatDone(idx); TRAIN.lastIdx = idx; updateCoach(idx); }
+  // temps dansé + jours actifs
+  if (S.amt > 0.5 && (isPlaying() || liveActive())) {
+    PROG.danceSec += dt;
+    const d = today(); if (PROG.days[PROG.days.length - 1] !== d) { PROG.days.push(d); if (PROG.days.length > 400) PROG.days.shift(); progTouch(true); renderProgress(); }
+    progTouch(false);
+    if (Math.floor(PROG.danceSec) % 30 === 0 && Math.floor(PROG.danceSec - dt) % 30 !== 0) renderProgress();
+  }
+
   // bulle de texte : encouragements au repos, petits bravos pendant la danse
   if (idle) {
     BUB.wasDancing = false;
@@ -3112,7 +3349,8 @@ function frame(now) {
   const happy = BUB.kind === 'cheer' && bAlpha > 0.3;
 
   if (stage) {
-    const hp = stage.render({ pose0: p0, pose1: p1, poseM: pM, pose2: p2, e: ease(frac), frac, b, dt, pulse, amt: S.amt, tsec: t, blink, lookX, talk, happy });
+    const marks = TRAIN.on && TRAIN.marks ? [footMark(seqAt(idx + 1).pose.l), footMark(seqAt(idx + 1).pose.r)] : null;
+    const hp = stage.render({ pose0: p0, pose1: p1, poseM: pM, pose2: p2, e: ease(frac), frac, b, dt, pulse, amt: S.amt, tsec: t, blink, lookX, talk, happy, marks });
     updateBubble(hp, bAlpha, Math.floor((t - BUB.start) * 38));
   }
   requestAnimationFrame(frame);
@@ -3132,6 +3370,7 @@ function leaveYT() {
   $('#ytbox').hidden = true; $('#volLabel').hidden = false;
 }
 async function loadTrack(t, el) {
+  if (TRAIN.on) stopTraining();
   closeDrawer();
   const token = ++S.token;
   ensureCtx(); stopLive(true);
@@ -3216,6 +3455,7 @@ async function ensurePlayer() {
   });
 }
 function enterYT() {
+  if (TRAIN.on) stopTraining();
   stopSong(); S.song = null; S.metronome = false; S.mode = 'yt';
   if (!LIVE.on) { S.t0 = 0; S.offset = 0; $('#offset').value = 0; $('#offsetV').textContent = '0'; }
   Y.phased = LIVE.on && LIVE.locked; Y.videoId = null; Y.looked = null; Y.state = -1; Y.title = ''; Y.note = ''; Y.cands = [];
@@ -3271,6 +3511,7 @@ function cleanTitle(t, author) {
   return s.replace(/ - /g, ' ');
 }
 function renderYTInfo() {
+  syncYtAdd();
   const el = $('#ytinfo');
   el.innerHTML = Y.title ? `<b>${esc(Y.title)}</b>` : 'Chargement de la vidéo…';
 }
@@ -3367,39 +3608,203 @@ async function ytSearch(q) {
     ytBox.innerHTML = '';
     const items = j.items || [];
     if (!items.length) { ytBox.innerHTML = '<div class="empty">Aucun résultat.</div>'; return; }
-    items.forEach(i => ytBox.appendChild(resRow(
+    items.forEach(i => ytBox.appendChild(resRowAdd(
       i.snippet.thumbnails && i.snippet.thumbnails.default.url, dec(i.snippet.title), dec(i.snippet.channelTitle),
-      () => playYT({ ids: [i.id.videoId] }))));
+      () => playYT({ ids: [i.id.videoId] }), i.id.videoId)));
   } catch (err) {
     ytBox.innerHTML = `<div class="empty">⚠️ ${esc(err.message)}</div>`;
   }
 }
 
-const GG = { token: null, client: null };
+const GG = { token: null, client: null, name: '', lists: null, pending: null };
+// YouTube (lire ET gérer ses playlists) + un dossier privé de Google Drive réservé à l'appli (personnage, progression)
+const G_SCOPE = 'https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/drive.appdata';
+const CLOUD = { fileId: null, state: '', err: '', timer: null, applying: false };
+const CLOUD_FILE = 'stepcoach.json';
+async function gFetch(url, opt = {}, retry = true) {
+  const r = await fetch(url, { ...opt, headers: { Authorization: 'Bearer ' + GG.token, ...(opt.headers || {}) } });
+  if (r.status === 401 && retry && GG.client) { await gToken(''); return gFetch(url, opt, false); }
+  if (!r.ok) { let m = 'HTTP ' + r.status; try { const j = await r.json(); m = (j.error && j.error.message) || m; } catch (_) {} throw new Error(m); }
+  return r;
+}
+function userData() {
+  store.set('progress', PROG);
+  return { v: 1, updated: Math.max(PROG.updated || 0, +store.get('localUpdated', 0)), look: LOOK, board: BOARD, variety, zone,
+           moves: [...selected], train: { move: TRAIN.move, bpm: TRAIN.bpm }, progress: PROG };
+}
+function mergeProgress(a, b) {
+  const out = { danceSec: Math.max(a.danceSec || 0, b.danceSec || 0), days: [...new Set([...(a.days || []), ...(b.days || [])])].sort(), moves: {}, updated: Math.max(a.updated || 0, b.updated || 0) };
+  new Set([...Object.keys(a.moves || {}), ...Object.keys(b.moves || {})]).forEach(k => {
+    const x = (a.moves || {})[k] || {}, y = (b.moves || {})[k] || {};
+    out.moves[k] = { reps: Math.max(x.reps || 0, y.reps || 0), best: Math.max(x.best || 0, y.best || 0), last: Math.max(x.last || 0, y.last || 0) };
+  });
+  return out;
+}
+function applyUserData(d) {
+  CLOUD.applying = true;
+  try {
+    if (d.look) { Object.keys(d.look).forEach(k => { if (k in DEFAULT_LOOK) LOOK[k] = d.look[k]; }); store.set('look3', LOOK); }
+    if (d.board) { Object.assign(BOARD, d.board); applyBoard(); store.set('board', BOARD); }
+    if (typeof d.variety === 'number') { variety = clamp(d.variety, 0, 3); store.set('variety', variety); }
+    if (d.zone && LANES_OF[d.zone]) { zone = d.zone; store.set('zone', zone); }
+    if (Array.isArray(d.moves) && d.moves.length) { selected = new Set(d.moves.filter(k => MOVES[k])); store.set('moves2', [...selected]); }
+    if (d.train) { if (MOVES[d.train.move]) TRAIN.move = d.train.move; if (d.train.bpm) TRAIN.bpm = d.train.bpm; }
+    if (!TRAIN.on) buildSeq();
+    renderLook(); renderBoard(); renderVariety(); renderZone(); renderChoreo(); renderTrain(); renderProgress();
+  } finally { CLOUD.applying = false; }
+}
+// à la connexion : on récupère la sauvegarde du compte ; la plus récente gagne, la progression est fusionnée
+async function cloudLoad() {
+  CLOUD.state = 'saving'; renderProgress();
+  try {
+    const q = encodeURIComponent(`name='${CLOUD_FILE}'`);
+    const list = await (await gFetch(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id,modifiedTime)`)).json();
+    const f = (list.files || [])[0];
+    if (f) {
+      CLOUD.fileId = f.id;
+      const remote = await (await gFetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`)).json();
+      const local = userData();
+      const merged = mergeProgress(local.progress, remote.progress || {});
+      if ((remote.updated || 0) > (local.updated || 0)) applyUserData(remote);
+      Object.assign(PROG, merged); store.set('progress', PROG);
+    }
+    await cloudSave();
+  } catch (err) { CLOUD.state = 'error'; CLOUD.err = err.message; renderProgress(); }
+}
+async function cloudSave() {
+  if (!GG.token) return;
+  CLOUD.state = 'saving'; renderProgress();
+  try {
+    const body = JSON.stringify(userData());
+    if (CLOUD.fileId) {
+      await gFetch(`https://www.googleapis.com/upload/drive/v3/files/${CLOUD.fileId}?uploadType=media`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body });
+    } else {
+      const bd = 'stepcoach' + Date.now();
+      const multi = `--${bd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` + JSON.stringify({ name: CLOUD_FILE, parents: ['appDataFolder'] }) +
+                    `\r\n--${bd}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${bd}--`;
+      const j = await (await gFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + bd }, body: multi })).json();
+      CLOUD.fileId = j.id;
+    }
+    CLOUD.state = 'ok';
+  } catch (err) { CLOUD.state = 'error'; CLOUD.err = err.message; }
+  renderProgress();
+}
+function cloudSaveSoon() {
+  store.set('localUpdated', Date.now());
+  if (CLOUD.applying || !GG.token) return;
+  clearTimeout(CLOUD.timer); CLOUD.timer = setTimeout(cloudSave, 3000);
+}
+function gToken(prompt) {
+  return new Promise((res, rej) => { GG.pending = { res, rej }; GG.client.requestAccessToken(prompt === undefined ? {} : { prompt }); });
+}
 async function googleLogin() {
-  if (!CFG.client) { $('#gState').textContent = 'ID client OAuth manquant (voir ⚙).'; return; }
+  if (GG.token) { showMyPlaylists(); return; }
+  if (!CFG.client) {
+    $('#gState').innerHTML = 'Connexion Google pas encore configurée (identifiant OAuth manquant).';
+    return;
+  }
   try {
     if (!(window.google && google.accounts && google.accounts.oauth2)) await loadScript('https://accounts.google.com/gsi/client');
-    GG.client = google.accounts.oauth2.initTokenClient({
-      client_id: CFG.client, scope: 'https://www.googleapis.com/auth/youtube.readonly',
-      callback: r => {
-        if (r.error || !r.access_token) { $('#gState').textContent = 'Connexion refusée.'; return; }
-        GG.token = r.access_token; $('#gState').textContent = 'Connecté ✓'; $('#gLogin').textContent = 'Recharger mes playlists';
-        showMyPlaylists();
-      },
+    if (!GG.client) GG.client = google.accounts.oauth2.initTokenClient({
+      client_id: CFG.client, scope: G_SCOPE,
+      callback: r => { const p = GG.pending; GG.pending = null; if (r.error || !r.access_token) { p && p.rej(new Error(r.error || 'refus')); return; } GG.token = r.access_token; p && p.res(r.access_token); },
+      error_callback: e => { const p = GG.pending; GG.pending = null; p && p.rej(new Error(e.type || 'fenêtre fermée')); },
     });
-    GG.client.requestAccessToken();
-  } catch (err) { $('#gState').textContent = 'Erreur : ' + (err.message || err); }
+    await gToken();
+    try { const me = await gApi('GET', 'channels', { part: 'snippet', mine: 'true' }); GG.name = (me.items && me.items[0] && me.items[0].snippet.title) || ''; } catch (_) {}
+    $('#gState').textContent = 'Connecté' + (GG.name ? ' : ' + GG.name : '') + ' ✓';
+    $('#gLogin').textContent = 'Mes playlists';
+    syncYtAdd();
+    showMyPlaylists();
+    cloudLoad();
+  } catch (err) { $('#gState').textContent = 'Connexion annulée (' + (err.message || err) + ').'; }
 }
+// appel à l'API YouTube avec le compte connecté ; si le jeton a expiré (1 h), on le renouvelle sans redemander
+async function gApi(method, path, params, body, retry = true) {
+  const u = new URL('https://www.googleapis.com/youtube/v3/' + path);
+  Object.entries(params || {}).forEach(([k, v]) => u.searchParams.set(k, v));
+  const r = await fetch(u, { method, headers: { Authorization: 'Bearer ' + GG.token, ...(body && { 'Content-Type': 'application/json' }) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401 && retry && GG.client) { await gToken(''); return gApi(method, path, params, body, false); }
+  const j = r.status === 204 ? {} : await r.json();
+  if (!r.ok) throw new Error(j.error && j.error.message || ('HTTP ' + r.status));
+  return j;
+}
+async function loadMyLists(force) {
+  if (GG.lists && !force) return GG.lists;
+  let items = [], page = '';
+  for (let i = 0; i < 4; i++) {
+    const j = await gApi('GET', 'playlists', { part: 'snippet,contentDetails', mine: 'true', maxResults: 50, ...(page && { pageToken: page }) });
+    items = items.concat(j.items || []); page = j.nextPageToken; if (!page) break;
+  }
+  return (GG.lists = items);
+}
+async function createPlaylist(title) {
+  const p = await gApi('POST', 'playlists', { part: 'snippet,status' }, { snippet: { title, description: 'Créée avec StepCoach' }, status: { privacyStatus: 'private' } });
+  GG.lists = null;
+  return p;
+}
+async function addToPlaylist(playlistId, videoId) {
+  return gApi('POST', 'playlistItems', { part: 'snippet' }, { snippet: { playlistId, resourceId: { kind: 'youtube#video', videoId } } });
+}
+// petit sélecteur « ajouter à… » (playlists existantes ou nouvelle)
+async function playlistPicker(box, videoId, title) {
+  box.innerHTML = '<div class="plpick"><div class="empty" style="padding:2px">Chargement de tes playlists…</div></div>';
+  const wrap = box.firstChild;
+  try {
+    const lists = await loadMyLists();
+    wrap.innerHTML = `<div class="sub" style="margin:0">Ajouter « ${esc(title || 'ce titre')} » à :</div>`;
+    const ch = document.createElement('div'); ch.className = 'chips';
+    const done = name => { wrap.innerHTML = `<div class="empty" style="padding:2px">✅ Ajouté à <b>${esc(name)}</b></div>`; setTimeout(() => { box.innerHTML = ''; }, 2500); };
+    lists.forEach(p => {
+      const b = document.createElement('button'); b.textContent = p.snippet.title;
+      b.onclick = async () => { b.disabled = true; try { await addToPlaylist(p.id, videoId); done(p.snippet.title); } catch (e) { b.disabled = false; b.textContent = '⚠️ ' + e.message; } };
+      ch.appendChild(b);
+    });
+    wrap.appendChild(ch);
+    const f = document.createElement('form');
+    f.innerHTML = '<input type="text" placeholder="Nouvelle playlist…" aria-label="Nom de la nouvelle playlist"><button class="primary" style="padding:8px 12px">Créer</button>';
+    f.onsubmit = async e => {
+      e.preventDefault(); const name = f.querySelector('input').value.trim(); if (!name) return;
+      f.querySelector('button').disabled = true;
+      try { const p = await createPlaylist(name); await addToPlaylist(p.id, videoId); done(name); } catch (err) { f.querySelector('button').disabled = false; wrap.appendChild(Object.assign(document.createElement('div'), { className: 'empty', textContent: '⚠️ ' + err.message })); }
+    };
+    wrap.appendChild(f);
+    const x = document.createElement('button'); x.textContent = 'Annuler'; x.style.justifySelf = 'start'; x.onclick = () => { box.innerHTML = ''; };
+    wrap.appendChild(x);
+  } catch (err) { wrap.innerHTML = `<div class="empty">⚠️ ${esc(err.message)}</div>`; }
+}
+// ligne de résultat + bouton « ＋ » (ajout à une playlist) quand on est connecté
+function resRowAdd(thumb, title, sub, onclick, videoId) {
+  const row = resRow(thumb, title, sub, onclick);
+  if (!GG.token || !videoId) return row;
+  const w = document.createElement('div'), line = document.createElement('div'), box = document.createElement('div');
+  line.className = 'resw';
+  const add = document.createElement('button'); add.className = 'addpl'; add.textContent = '＋'; add.title = 'Ajouter à une playlist';
+  add.onclick = () => box.innerHTML ? (box.innerHTML = '') : playlistPicker(box, videoId, title);
+  line.append(row, add); w.append(line, box);
+  return w;
+}
+function syncYtAdd() { const b = $('#ytAdd'); if (b) b.hidden = !(GG.token && Y.videoId); }
 async function showMyPlaylists() {
   ytBox.innerHTML = '<div class="empty">Chargement de tes playlists…</div>';
   try {
-    const j = await ytApi('playlists', { part: 'snippet,contentDetails', mine: 'true', maxResults: 50 }, GG.token);
-    ytBox.innerHTML = '<div class="sub">Mes playlists</div>';
+    const lists = await loadMyLists(true);
+    ytBox.innerHTML = '';
+    const head = document.createElement('div'); head.className = 'sub'; head.textContent = 'Mes playlists'; ytBox.appendChild(head);
+    // créer une playlist
+    const f = document.createElement('form');
+    f.innerHTML = '<input type="text" placeholder="Nom d\'une nouvelle playlist…" aria-label="Nom de la nouvelle playlist"><button class="primary">＋ Créer</button>';
+    f.onsubmit = async e => {
+      e.preventDefault(); const name = f.querySelector('input').value.trim(); if (!name) return;
+      f.querySelector('button').disabled = true;
+      try { await createPlaylist(name); showMyPlaylists(); } catch (err) { f.querySelector('button').disabled = false; alert('Création impossible : ' + err.message); }
+    };
+    ytBox.appendChild(f);
     ytBox.appendChild(resRow(null, '❤ Titres likés', 'Liked Music', () => showPlaylist('LL', 'Titres likés')));
-    (j.items || []).forEach(p => ytBox.appendChild(resRow(
+    lists.forEach(p => ytBox.appendChild(resRow(
       p.snippet.thumbnails && (p.snippet.thumbnails.default || {}).url, p.snippet.title,
       p.contentDetails.itemCount + ' titres', () => showPlaylist(p.id, p.snippet.title))));
+    if (!lists.length) ytBox.appendChild(Object.assign(document.createElement('div'), { className: 'empty', textContent: 'Tu n\'as pas encore de playlist : crée-en une ci-dessus, puis ajoute des titres avec le bouton ＋ des résultats de recherche.' }));
   } catch (err) { ytBox.innerHTML = `<div class="empty">⚠️ ${esc(err.message)}</div>`; }
 }
 async function showPlaylist(id, name) {
@@ -3407,7 +3812,7 @@ async function showPlaylist(id, name) {
   try {
     let items = [], page = '';
     for (let i = 0; i < 4; i++) {
-      const j = await ytApi('playlistItems', { part: 'snippet', playlistId: id, maxResults: 50, ...(page && { pageToken: page }) }, GG.token);
+      const j = await gApi('GET', 'playlistItems', { part: 'snippet', playlistId: id, maxResults: 50, ...(page && { pageToken: page }) });
       items = items.concat(j.items || []); page = j.nextPageToken; if (!page) break;
     }
     items = items.filter(i => i.snippet && i.snippet.resourceId && !/^(Private|Deleted) video$/.test(i.snippet.title));
@@ -3416,9 +3821,14 @@ async function showPlaylist(id, name) {
     ytBox.appendChild(back);
     const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = name; ytBox.appendChild(sub);
     const ids = items.map(i => i.snippet.resourceId.videoId);
-    items.forEach((i, n) => ytBox.appendChild(resRow(
+    if (!items.length) ytBox.appendChild(Object.assign(document.createElement('div'), { className: 'empty', textContent: 'Playlist vide : ajoute des titres avec le bouton ＋ des résultats de recherche.' }));
+    else {
+      const all = document.createElement('button'); all.className = 'primary'; all.textContent = '▶ Tout lire'; all.onclick = () => playYT({ ids, index: 0 });
+      ytBox.appendChild(all);
+    }
+    items.forEach((i, n) => ytBox.appendChild(resRowAdd(
       i.snippet.thumbnails && (i.snippet.thumbnails.default || {}).url, i.snippet.title,
-      i.snippet.videoOwnerChannelTitle || '', () => playYT({ ids, index: n }))));
+      i.snippet.videoOwnerChannelTitle || '', () => playYT({ ids, index: n }), ids[n])));
   } catch (err) { ytBox.innerHTML = `<div class="empty">⚠️ ${esc(err.message)}</div>`; }
 }
 
@@ -3437,6 +3847,7 @@ function renderChoreo() {
       row.className = 'mv' + (selected.has(k) ? ' sel' : '');
       row.innerHTML = `<input type="checkbox" ${selected.has(k) ? 'checked' : ''} aria-label="${esc(m.name)}">` +
                       `<div class="tx"><b>${esc(m.name)}</b><small>${esc(m.desc)}</small></div>` +
+                      (moveLevel(k) ? `<span class="lv" style="color:${MOVE_LV[moveLevel(k)][1]};border:1px solid ${MOVE_LV[moveLevel(k)][1]}55">${MOVE_LV[moveLevel(k)][0]}</span>` : '') +
                       `<span class="n">${m.beats.length} temps</span><button>Voir</button>`;
       const cb = row.querySelector('input');
       cb.onchange = () => { cb.checked ? selected.add(k) : selected.delete(k); commitSel(); };
@@ -3504,7 +3915,6 @@ $('#origin').textContent = location.origin;
 const cfgState = () => {
   $('#keyState').textContent = CFG.key ? '· enregistrée ✓' : '· manquante';
   $('#clientState').textContent = CFG.client ? '· enregistré ✓' : '· manquant';
-  $('#gLogin').hidden = !CFG.client;
 };
 cfgState();
 $('#gear').onclick = () => { $('#cfg').hidden = !$('#cfg').hidden; $('#cfg').open = true; };
@@ -3517,6 +3927,7 @@ $('#cfgSave').onclick = () => {
   cfgState(); $('#cfg').hidden = true;
 };
 $('#gLogin').onclick = googleLogin;
+$('#ytAdd').onclick = () => { const box = $('#ytAddBox'); box.innerHTML ? (box.innerHTML = '') : playlistPicker(box, Y.videoId, Y.title); };
 $('#ytAlt').onclick = () => { Y.ci = (Y.ci + 1) % Y.cands.length; tryCandidate(); };
 
 $('#autoLive').checked = store.get('autolive', true);
@@ -3525,8 +3936,18 @@ $('#liveTab').onclick = () => startLive('tab');
 $('#liveMic').onclick = () => startLive('mic');
 $('#liveStop').onclick = () => stopLive();
 
+$('#trGo').onclick = () => TRAIN.on ? stopTraining() : startTraining();
+$('#trStep').onchange = e => { TRAIN.step = e.target.checked; TRAIN.until = Math.floor(S.idleB) + (TRAIN.step ? 0 : 1); };
+$('#trMarks').onchange = e => { TRAIN.marks = e.target.checked; };
+$('#cStop').onclick = stopTraining;
+$('#cStepB').onclick = trainNext;
+$('#cPrev').onclick = () => { TRAIN.step = true; const k = Math.max(0, Math.floor(S.idleB + 1e-6) - 1); S.idleB = k; TRAIN.until = k; renderTrain(); };
+$('#cPause').onclick = () => { if (TRAIN.step) { TRAIN.step = false; } else { TRAIN.step = true; TRAIN.until = Math.floor(S.idleB) + 1; } renderTrain(); TRAIN.lastIdx = null; };
+$('#cSlow').onclick = () => { TRAIN.bpm = clamp(TRAIN.bpm - 10, 40, 150); setBpm(TRAIN.bpm, false); TRAIN.lastIdx = null; renderTrain(); };
+$('#cFast').onclick = () => { TRAIN.bpm = clamp(TRAIN.bpm + 10, 40, 150); setBpm(TRAIN.bpm, false); TRAIN.lastIdx = null; renderTrain(); };
 $('#play').onclick = () => {
   ensureCtx();
+  if (TRAIN.on) { $('#cPause').click(); syncPlayBtn(); return; }
   if (S.mode === 'preview') {
     if (S.playing) { S.pausedPos = songPos().pos; stopSong(); } else startSong(S.pausedPos);
   } else if (S.mode === 'yt') {
@@ -3565,13 +3986,18 @@ $('#offset').oninput = e => { S.offset = +e.target.value; $('#offsetV').textCont
 $('#vol').oninput = e => { if (S.gain) S.gain.gain.value = +e.target.value; };
 window.addEventListener('keydown', e => {
   if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  if (e.code === 'Space' && TRAIN.on && TRAIN.step) { e.preventDefault(); trainNext(); return; }
   if (e.code === 'Space' && document.activeElement.tagName !== 'BUTTON') { e.preventDefault(); $('#play').click(); }
   if (e.code === 'KeyT') doTap();
 });
 
-buildSeq(); renderZone(); renderVariety(); renderChoreo(); renderLook(); syncPlayBtn(); initStage();
+buildSeq(); renderZone(); renderVariety(); renderTrain(); renderChoreo(); renderLook(); renderProgress(); syncPlayBtn(); initStage();
+{ const SYNC_KEYS = new Set(['look3', 'board', 'variety', 'zone', 'moves2', 'trMove', 'trBpm', 'progress']), raw = store.set;
+  store.set = (k, v) => { raw(k, v); if (SYNC_KEYS.has(k) && !(k === 'progress' && !PROG._sync)) cloudSaveSoon(); };
+  setInterval(() => { if (GG.token && PROG.updated > (CLOUD.lastProg || 0)) { CLOUD.lastProg = PROG.updated; store.set('progress', PROG); cloudSaveSoon(); } }, 60000);
+  window.addEventListener('pagehide', () => store.set('progress', PROG)); }
 requestAnimationFrame(frame);
-window.__step = { S, Y, LIVE, seqAt, ease, SEQLEN: () => SEQ.length, startLive, stopLive, detectTempo, foldBpm, cleanTitle, parseYT, ytSearch, selected: () => selected, LOOK, hasKey: () => !!CFG.key };
+window.__step = { S, Y, LIVE, seqAt, ease, TRAIN, startTraining, stopTraining, poseCue, GG, showMyPlaylists, ytSearch, PROG, cloudLoad, cloudSave, CLOUD, SEQLEN: () => SEQ.length, startLive, stopLive, detectTempo, foldBpm, cleanTitle, parseYT, ytSearch, selected: () => selected, LOOK, hasKey: () => !!CFG.key };
 })();
 </script>
 </body>
