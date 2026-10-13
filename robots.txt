@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /models/
+
+Sitemap: https://step.deonstudio.fr/sitemap.xml
