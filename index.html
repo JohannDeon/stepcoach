@@ -1184,7 +1184,7 @@ function buildStage(T, FX) {
   const HAIRCFG = {
     ponytail:  { lock: 17, lw: 4.2, notch: -4.8, ahoge: true, tips: [[10.8, 2.4], [7.6, 0.2], [4.6, 2.6], [1.4, 0.8], [-1.6, 3.6], [-4.8, 0.6], [-7.8, 2.2], [-10.6, 0.4]] },
     twintails: { lock: 17, lw: 4.2, notch: -4.6, ahoge: true, tips: [[10.6, 1.6], [7.2, 2.8], [3.8, 0.8], [0.4, 3.4], [-3.2, 0.8], [-6.8, 2.8], [-10.4, 1.4]] },
-    long:      { lock: 38, lw: 4.6, notch: -5.0, ahoge: true, tips: [[10.8, 2.8], [7.4, 0.6], [4.2, 3.0], [0.8, 0.6], [-2.4, 3.8], [-5.8, 1.0], [-9.0, 2.6], [-11.0, 0.8]] },
+    long:      { lock: 27, lw: 4.6, notch: -5.0, ahoge: true, tips: [[10.8, 2.8], [7.4, 0.6], [4.2, 3.0], [0.8, 0.6], [-2.4, 3.8], [-5.8, 1.0], [-9.0, 2.6], [-11.0, 0.8]] },
     bob:       { lock: 19, lw: 5.2, notch: -2.4, ahoge: false, tips: [[10.5, 0.6], [7.5, 1.1], [4.5, 0.6], [1.5, 1.2], [-1.5, 0.6], [-4.5, 1.2], [-7.5, 0.6], [-10.5, 1.0]] },
     bun:       { lock: 15, lw: 3.8, notch: -4.8, ahoge: false, tips: [[10.6, 1.8], [7.0, 0.0], [3.6, 2.4], [0.2, 0.4], [-3.4, 2.8], [-7.0, 0.4], [-10.4, 1.6]] },
     short:     { lock: 8, lw: 2.8, notch: -6.8, ahoge: false, sweep: 1.4, tips: [[10.6, -1.2], [7.2, 1.0], [3.6, -0.2], [0.2, 1.6], [-3.4, -0.4], [-6.8, 0.2], [-10.2, -2.4]] },
@@ -1299,11 +1299,17 @@ function buildStage(T, FX) {
       if (dk !== dKey) { D = animeDims(); dKey = dk; initHair(); }
       const { pose0, pose1, poseM, pose2, e, frac, b, dt, pulse, amt, tsec, lookX } = P;
       const ZS = BD.hz + 18, ANK = D.ANK;
+      // saut : les deux pieds quittent le sol ensemble (montée / descente pieds joints, jumping jack)
+      const dlx = pose1.l[0] - pose0.l[0], drx = pose1.r[0] - pose0.r[0], dly = pose1.l[1] - pose0.l[1], dry = pose1.r[1] - pose0.r[1];
+      const jump = amt > 0.5 && Math.hypot(dlx, dly) > 3 && Math.hypot(drx, dry) > 3 &&
+                   ((dly !== 0 && Math.sign(dly) === Math.sign(dry)) || (dlx * drx < 0 && Math.abs(dlx - drx) > 20));
+      const eJ = jump ? (t => t * t * (3 - 2 * t))(clamp((frac - 0.16) / 0.66, 0, 1)) : 0;   // appel, envol, réception juste avant le temps
+      const flight = jump ? Math.sin(Math.PI * eJ) : 0;
       const foot = (a, bb, ee = e, lift = true) => {
         const x = lerp(bx(a[0]), bx(bb[0]), ee), y0 = lerp(a[1], bb[1], ee), z0 = lerp(a[2] || 0, bb[2] || 0, ee);
         const dz = Math.abs((bb[2] || 0) - (a[2] || 0));
         const mv = Math.hypot(bb[0] - a[0], bb[1] - a[1], dz * 30) > 3;
-        const yy = y0 + (mv && lift ? (16 + 18 * dz) * Math.pow(Math.sin(Math.PI * Math.pow(ee, 0.85)), 1.1) : 0);
+        const yy = y0 + (mv && lift ? (jump ? 7 * Math.sin(Math.PI * ee) : (16 + 18 * dz) * Math.pow(Math.sin(Math.PI * Math.pow(ee, 0.85)), 1.1)) : 0);
         let yw = yy <= STEP ? yy / STEP * BD.h : BD.h + (yy - STEP);
         if (mv && lift) {
           const ins = Math.min(BD.hx + 9 - Math.abs(x), BD.hz + 9 - Math.abs(z0 * ZS));
@@ -1311,7 +1317,7 @@ function buildStage(T, FX) {
         }
         return { x, z: z0 * ZS, mv, y: yw };
       };
-      const fl = foot(pose0.l, pose1.l), fr = foot(pose0.r, pose1.r);
+      const fl = foot(pose0.l, pose1.l, jump ? eJ : e), fr = foot(pose0.r, pose1.r, jump ? eJ : e);
       const t0 = pose0.turn || 0, t1 = pose1.turn || 0;
       let dtn = t1 - t0; dtn -= Math.round(dtn);
       const yaw = (t0 + dtn * e) * Math.PI * 2;
@@ -1332,7 +1338,13 @@ function buildStage(T, FX) {
       // pendant un déplacement le bassin est en retard sur les pieds : on mesure la portée depuis un bassin « à mi-chemin »
       const hxm = (st.hx + hxT) / 2, hzm = (st.hz + hzT) / 2;
       const hjMax = supportLimit((ft, sd) => ft.y + ANK + reachY(ft, hxm + sd * hj * right.x, hzm + sd * hj * right.z), foot, pose0, pose1, fl, fr, frac);
-      const hjY = softmin(follow(st, 'hy', hjMax - dip, 16, dt), hjMax, 1.5);
+      // saut : flexion d'appel, envol du bassin, puis amorti plus marqué au temps suivant
+      const bi = Math.floor(b);
+      if (jump) st.jumpBeat = bi;
+      const crouch = jump ? 8 * Math.exp(-(((frac - 0.07) / 0.075) ** 2)) * amt : 0;
+      const land = !jump && st.jumpBeat === bi - 1 ? 5 * bounce(frac) * amt : 0;
+      const lift = 15 * flight * amt;
+      const hjY = softmin(follow(st, 'hy', hjMax + lift - dip - crouch - land, jump ? 34 : 16, dt), hjMax + lift, 1.5);
       const H = J.H.set(st.hx, hjY + D.HDY, st.hz);
       const leanT = clamp((fr.x + fl.x) * 0.03, -3, 3) + 2 * Math.sin(Math.PI * b) * amt;
       st.lean += (leanT - st.lean) * (1 - Math.exp(-dt * 9));
@@ -2208,8 +2220,11 @@ function buildStage(T, FX) {
     }
     // cheveux longs : nappe derrière le dos (suit la gravité, se balance)
     function drawLongBack(c) {
-      const F = headFrame(true), m = pal, lw = ow / F.k, sw = J.sway * 0.9 - F.side * 3;
+      const F = headFrame(true), m = pal, lw = ow / F.k, sw = J.sway * 0.9;
+      // la nappe tombe derrière la nuque : de profil elle se décale vers le dos et s'affine (vue de côté)
+      const phi = Math.atan2(F.side, F.front);
       c.save(); setHead(c, F);
+      c.translate(-Math.sin(phi) * 9, 0); c.scale(0.55 + 0.45 * Math.abs(Math.cos(phi)), 1);
       const g = c.createLinearGradient(0, -6, 0, 54);
       g.addColorStop(0, m.hair.f); g.addColorStop(1, m.hair.s);
       layer(c, [{ p: c2 => {
