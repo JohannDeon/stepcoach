@@ -2927,7 +2927,13 @@ function curPos() {
   if (S.mode === 'yt') return ytTime(performance.now()) || 0;
   return null;
 }
-function liveActive() { return LIVE.on && LIVE.anchor !== null && LIVE.locked && LIVE.level > 0.004; }
+// le son de l'onglet fait foi tant qu'il est calé ; une baisse de volume passagère (couplet calme, blanc) ne le désactive pas
+function liveActive() {
+  if (!(LIVE.on && LIVE.anchor !== null && LIVE.locked)) return false;
+  const t = performance.now();
+  if (LIVE.level > 0.004) LIVE.loudAt = t;
+  return t - (LIVE.loudAt || 0) < 4000;
+}
 // progression (enregistrée sur l'appareil, et sur le compte Google si connecté)
 const PROG = Object.assign({ danceSec: 0, days: [], moves: {}, updated: 0 }, store.get('progress', {}));
 const today = () => new Date().toISOString().slice(0, 10);
@@ -3079,18 +3085,25 @@ function footMark(f) {
 }
 function beatPos(dt, now) {
   const Pd = 60 / S.bpm;
+  // chaque source (son de l'onglet, extrait, vidéo) donne la PHASE des temps ; le NUMÉRO du temps, lui, continue
+  // toujours depuis la valeur courante : changer de source ne fait jamais repartir la chorégraphie au début
+  let src = 'free', raw = null;
   if (liveActive()) {
-    const lat = LIVE.kind === 'tab' ? latency() : 0;
-    S.idleB = (S.ctx.currentTime - lat - LIVE.anchor) / Pd;
+    src = 'live'; raw = (S.ctx.currentTime - (LIVE.kind === 'tab' ? latency() : 0) - LIVE.anchor) / Pd;
   } else if (S.mode === 'preview' && S.song && S.playing) {
     const { pos, loops } = songPos();
-    S.idleB = (pos - S.t0) / Pd + loops * Math.round(S.song.dur / Pd);
+    src = 'prev'; raw = (pos - S.t0) / Pd + loops * Math.round(S.song.dur / Pd);
   } else if (S.mode === 'yt' && Y.state === 1) {
     const T = ytTime(now);
-    if (T === null) S.idleB += dt / Pd; else S.idleB = (T - S.t0) / Pd;
-  } else {
+    src = 'yt'; if (T !== null) raw = (T - S.t0) / Pd;
+  }
+  if (raw === null) {
     S.idleB += dt / Pd;
-    if (TRAIN.on && TRAIN.step) S.idleB = Math.min(S.idleB, TRAIN.until);      // pas à pas : elle attend le signal
+    if (src === 'free' && TRAIN.on && TRAIN.step) S.idleB = Math.min(S.idleB, TRAIN.until);   // pas à pas : elle attend le signal
+    if (src === 'free') S.bSrc = 'free';
+  } else {
+    if (S.bSrc !== src || S.bAnchor !== S.anchorGen) { S.bOff = Math.round(S.idleB - raw); S.bSrc = src; S.bAnchor = S.anchorGen; }
+    S.idleB = raw + S.bOff;
   }
   return S.idleB + S.offset;
 }
@@ -3247,6 +3260,7 @@ async function liveAnalyze() {
       LIVE.locked = true;                         // verrou définitif tant que le son continue
       const Pd0 = 60 / avg, aNew0 = tStart + res.t0;   // phase directement issue de l'analyse (pas de rattrapage)
       LIVE.anchor = aNew0 + Math.round((S.ctx.currentTime - aNew0) / Pd0) * Pd0;
+      S.anchorGen = (S.anchorGen || 0) + 1;
       S.bpm = avg; LIVE.ref = avg; LIVE.jump = 0;
       $('#bpm').textContent = Math.round(avg); renderCycle();
     }
