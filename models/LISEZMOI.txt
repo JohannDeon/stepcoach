@@ -1,0 +1,7 @@
+Depose ici ton avatar 3D :
+
+  perso.glb   (ou avatar.glb)
+
+Formats compatibles : avatar Ready Player Me (readyplayer.me, export GLB) ou personnage Mixamo
+(squelette humain standard : Hips, Spine, Neck, Head, Arm, ForeArm, Hand, UpLeg, Leg, Foot).
+Recharge ensuite la page : StepCoach le charge automatiquement a la place du modele par defaut.
