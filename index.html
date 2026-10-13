@@ -876,7 +876,28 @@ $('#lookRandom').onclick = () => {
    ════════════════════════════════════════════════════════════ */
 const cv = $('#cv');
 let drawerInset = 0;
-const ease = f => { const t = clamp(f / 0.85, 0, 1); return t * t * (3 - 2 * t); };
+const ease = f => { const t = clamp((f - 0.08) / 0.8, 0, 1); return t * t * t * (t * (6 * t - 15) + 10); };
+// ressort amorti critique : suit une cible sans cassure de vitesse (le centre de gravité ne « saute » jamais)
+function follow(st, k, target, w, dt) {
+  const v = k + 'V';
+  if (!isFinite(st[k])) { st[k] = target; st[v] = 0; return target; }
+  const n = Math.max(1, Math.ceil(dt / 0.004)), h = Math.min(dt, 0.05) / n;
+  for (let i = 0; i < n; i++) { st[v] += (w * w * (target - st[k]) - 2 * w * st[v]) * h; st[k] += st[v] * h; }
+  return st[k];
+}
+// flexion des genoux à chaque temps : creux juste après la réception, remontée douce, continu d'un temps à l'autre
+// minimum « doux » : pas de cassure quand la jambe d'appui change ou arrive en extension
+const softmin = (a, b, k = 2.5) => { const m = Math.min(a, b); return m - k * Math.log(Math.exp((m - a) / k) + Math.exp((m - b) / k)); };
+// hauteur max du bassin : chaque pied impose une limite calculée sur son appui (sans le lever du pied), qui glisse
+// du départ à l'arrivée sur tout le temps : le corps descend / monte progressivement au lieu de chuter d'un coup
+function supportLimit(limOf, foot, pose0, pose1, fl, fr, frac) {
+  let t = clamp(frac / 0.9, 0, 1); t = t * t * t * (t * (6 * t - 15) + 10);
+  const one = (a, b, cur, sd) => {
+    return softmin(limOf(foot(a, b, t, false), sd), limOf(cur, sd) + 5, 3);
+  };
+  return softmin(one(pose0.l, pose1.l, fl, -1), one(pose0.r, pose1.r, fr, 1));
+}
+const bounce = frac => { let d = frac - 0.2; d -= Math.round(d); return Math.exp(-d * d / 0.03); };
 const SCHEMES = [['#2a0a5e', '#ff2d95', '#27e1ff'], ['#05306e', '#00c8ff', '#ff3d9a'],
                  ['#3a0b4a', '#b13bff', '#ffd23d'], ['#0a3d3a', '#2ee6a8', '#ff3d9a']];
 const mixHex = (a, b, t) => { const x = toRgb(a), y = toRgb(b); return toHex(x.map((v, i) => lerp(v, y[i], t))); };
@@ -1228,12 +1249,17 @@ function buildStage(T, FX) {
       if (dk !== dKey) { D = animeDims(); dKey = dk; initHair(); }
       const { pose0, pose1, poseM, pose2, e, frac, b, dt, pulse, amt, tsec, lookX } = P;
       const ZS = BD.hz + 18, ANK = D.ANK;
-      const foot = (a, bb) => {
-        const x = lerp(bx(a[0]), bx(bb[0]), e), y0 = lerp(a[1], bb[1], e), z0 = lerp(a[2] || 0, bb[2] || 0, e);
+      const foot = (a, bb, ee = e, lift = true) => {
+        const x = lerp(bx(a[0]), bx(bb[0]), ee), y0 = lerp(a[1], bb[1], ee), z0 = lerp(a[2] || 0, bb[2] || 0, ee);
         const dz = Math.abs((bb[2] || 0) - (a[2] || 0));
         const mv = Math.hypot(bb[0] - a[0], bb[1] - a[1], dz * 30) > 3;
-        const yy = y0 + (mv ? (16 + 18 * dz) * Math.sin(Math.PI * e) : 0);
-        return { x, z: z0 * ZS, mv, y: yy <= STEP ? yy / STEP * BD.h : BD.h + (yy - STEP) };
+        const yy = y0 + (mv && lift ? (16 + 18 * dz) * Math.pow(Math.sin(Math.PI * Math.pow(ee, 0.85)), 1.1) : 0);
+        let yw = yy <= STEP ? yy / STEP * BD.h : BD.h + (yy - STEP);
+        if (mv && lift) {
+          const ins = Math.min(BD.hx + 9 - Math.abs(x), BD.hz + 9 - Math.abs(z0 * ZS));
+          if (ins > 0) { const k = Math.min(1, ins / 9); yw += Math.max(0, BD.h + 6 - yw) * k * k * (3 - 2 * k) * Math.pow(Math.sin(Math.PI * ee), 0.7); }
+        }
+        return { x, z: z0 * ZS, mv, y: yw };
       };
       const fl = foot(pose0.l, pose1.l), fr = foot(pose0.r, pose1.r);
       const t0 = pose0.turn || 0, t1 = pose1.turn || 0;
@@ -1248,14 +1274,15 @@ function buildStage(T, FX) {
       const sL = 1 / (1 + Math.exp((fl.y - fr.y) / 6));
       const hxT = 0.95 * (sL * fl.x + (1 - sL) * fr.x) + 3.5 * Math.sin(Math.PI * b) * amt + 2.4 * Math.sin(tsec * 0.9) * (1 - amt);
       const hzT = 0.9 * (sL * fl.z + (1 - sL) * fr.z);
-      if (!st.init) { st.hx = hxT; st.hz = hzT; }
-      const kk = 1 - Math.exp(-dt * 16);
+      if (!st.init) { st.hx = hxT; st.hz = hzT; st.hxV = st.hzV = 0; st.hy = NaN; }
       const hx0 = st.hx;
-      st.hx += (hxT - st.hx) * kk; st.hz += (hzT - st.hz) * kk;
+      follow(st, 'hx', hxT, 10, dt); follow(st, 'hz', hzT, 10, dt);
       const reachY = (ft, jx, jz) => Math.sqrt(Math.max(1, REACH * REACH - (ft.x - jx) ** 2 - (ft.z - jz) ** 2));
-      const dip = 9 * Math.exp(-5 * frac) * amt + 2.5 * Math.sin(2 * Math.PI * b) * amt;
-      const hjY = Math.min(fl.y + ANK + reachY(fl, st.hx - hj * right.x, st.hz - hj * right.z),
-                           fr.y + ANK + reachY(fr, st.hx + hj * right.x, st.hz + hj * right.z)) - dip;
+      const dip = (6.5 * bounce(frac) + 1.2) * amt;
+      // pendant un déplacement le bassin est en retard sur les pieds : on mesure la portée depuis un bassin « à mi-chemin »
+      const hxm = (st.hx + hxT) / 2, hzm = (st.hz + hzT) / 2;
+      const hjMax = supportLimit((ft, sd) => ft.y + ANK + reachY(ft, hxm + sd * hj * right.x, hzm + sd * hj * right.z), foot, pose0, pose1, fl, fr, frac);
+      const hjY = softmin(follow(st, 'hy', hjMax - dip, 16, dt), hjMax, 1.5);
       const H = J.H.set(st.hx, hjY + D.HDY, st.hz);
       const leanT = clamp((fr.x + fl.x) * 0.03, -3, 3) + 2 * Math.sin(Math.PI * b) * amt;
       st.lean += (leanT - st.lean) * (1 - Math.exp(-dt * 9));
@@ -1266,7 +1293,7 @@ function buildStage(T, FX) {
       J.rC.set(Math.cos(yC), 0, -Math.sin(yC)); J.fC.set(Math.sin(yC), 0, Math.cos(yC));
       const HDt = C.clone().add(_v1.set(0, D.NK, 0)).addScaledVector(right, st.lean * 0.4 + lookX).addScaledVector(fwd, 1);
       if (!st.init) st.HD.copy(HDt);
-      st.HD.lerp(HDt, 1 - Math.exp(-dt * 18));
+      st.HD.lerp(HDt, 1 - Math.exp(-dt * 13));
       J.HD.copy(st.HD); J.top.copy(st.HD).add(_v1.set(0, 20, 0));
       J.headYaw = yaw + twist * 0.5 + lookX * 0.012;
       J.nod = 0.9 * Math.sin(Math.PI * b) * amt;
@@ -2407,11 +2434,11 @@ function buildStage(T, FX) {
     function update(Pm) {
       const { pose0, pose1, poseM, pose2, e, frac, b, dt, pulse, amt, tsec, lookX } = Pm;
       const ZS = BD.hz + 18;
-      const foot = (a, bb) => {
-        const x = lerp(bx(a[0]), bx(bb[0]), e), y0 = lerp(a[1], bb[1], e), z0 = lerp(a[2] || 0, bb[2] || 0, e);
+      const foot = (a, bb, ee = e, lift = true) => {
+        const x = lerp(bx(a[0]), bx(bb[0]), ee), y0 = lerp(a[1], bb[1], ee), z0 = lerp(a[2] || 0, bb[2] || 0, ee);
         const dz = Math.abs((bb[2] || 0) - (a[2] || 0));
         const mv = Math.hypot(bb[0] - a[0], bb[1] - a[1], dz * 30) > 3;
-        const yy = y0 + (mv ? (16 + 18 * dz) * Math.sin(Math.PI * e) : 0);
+        const yy = y0 + (mv && lift ? (16 + 18 * dz) * Math.pow(Math.sin(Math.PI * Math.pow(ee, 0.85)), 1.1) : 0);
         return { x, z: z0 * ZS, zl: z0, mv, y: yy <= STEP ? yy / STEP * BD.h : BD.h + (yy - STEP) };
       };
       const fl = foot(pose0.l, pose1.l), fr = foot(pose0.r, pose1.r);
@@ -2426,14 +2453,14 @@ function buildStage(T, FX) {
       const sL = 1 / (1 + Math.exp((fl.y - fr.y) / 6));
       const hxT = 0.95 * (sL * fl.x + (1 - sL) * fr.x) + 3.5 * Math.sin(Math.PI * b) * amt + 2.4 * Math.sin(tsec * 0.9) * (1 - amt);
       const hzT = 0.9 * (sL * fl.z + (1 - sL) * fr.z);
-      if (!st.init) { st.hx = hxT; st.hz = hzT; }
-      const kk = 1 - Math.exp(-dt * 16);
-      st.hx += (hxT - st.hx) * kk; st.hz += (hzT - st.hz) * kk;
+      if (!st.init) { st.hx = hxT; st.hz = hzT; st.hxV = st.hzV = 0; st.hy = NaN; }
+      follow(st, 'hx', hxT, 10, dt); follow(st, 'hz', hzT, 10, dt);
       const reachY = (ft, jx, jz) => Math.sqrt(Math.max(1, Lmax * Lmax - (ft.x - jx) ** 2 - (ft.z - jz) ** 2));
-      const dip = 9 * Math.exp(-5 * frac) * amt + 2.5 * Math.sin(2 * Math.PI * b) * amt;
+      const dip = (6.5 * bounce(frac) + 1.2) * amt;
       const ay = lens.footH;
-      const hjy = Math.min(fl.y + ay + reachY(fl, st.hx - hj * right.x, st.hz - hj * right.z),
-                           fr.y + ay + reachY(fr, st.hx + hj * right.x, st.hz + hj * right.z)) - dip;
+      const hxm = (st.hx + hxT) / 2, hzm = (st.hz + hzT) / 2;
+      const hjMax = supportLimit((ft, sd) => ft.y + ay + reachY(ft, hxm + sd * hj * right.x, hzm + sd * hj * right.z), foot, pose0, pose1, fl, fr, frac);
+      const hjy = softmin(follow(st, 'hy', hjMax - dip, 16, dt), hjMax, 1.5);
       const hipsPos = V3(st.hx, hjy + lens.hipDY, st.hz);
       B.Hips.parent.updateWorldMatrix(true, false);
       B.Hips.position.copy(B.Hips.parent.worldToLocal(hipsPos.clone()));
