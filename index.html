@@ -254,6 +254,7 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
         <div id="tab-choreo" hidden>
           <div class="opt"><h4>Le step</h4><div id="boardBox"></div></div>
           <div class="opt"><h4>Position par rapport au step</h4><div class="chips" id="zoneChips" style="margin:0"></div></div>
+          <div class="opt"><h4>Variation des pas</h4><div class="chips" id="varChips" style="margin:0"></div><p class="note" id="varDesc" style="margin:6px 0 0"></p></div>
           <div class="row">
             <button data-preset="1">Débutant</button>
             <button data-preset="2">Jusqu'à intermédiaire</button>
@@ -516,6 +517,23 @@ const MOVES = {
     [G(-NX), T(NX), 0.25], [T(-NX), T(NX), 0.5], [T(-NX), G(NX), 0.75], [G(-NX), G(NX), 1]] },
   plyo: { lvl: 3, name: 'Saut (plyo)', desc: 'Saut pieds joints sur le step, puis retour au sol. Deux fois.', styles: ['pump', 'jack', 'alt'], beats: [
     [T(-NX - 3), T(NX + 3)], [G(-NX - 3), G(NX + 3)], [T(-NX - 3), T(NX + 3)], [G(-NX), G(NX)]] },
+  kick: { lvl: 1, name: 'Coup de pied avant', desc: 'Monte D, donne un petit coup de pied G vers l\'avant, descends G puis D.', styles: ['pump', 'box', 'cross'], beats: [
+    [G(-NX), T(NX)], [[-12, STEP + 38, 0.75], T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
+  curl: { lvl: 1, name: 'Talon-fesse', desc: 'Monte D, ramène le talon G vers la fesse, descends G puis D.', styles: ['biceps', 'pump', 'alt'], beats: [
+    [G(-NX), T(NX)], [[-14, STEP + 42, -0.55], T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
+  glute: { lvl: 2, name: 'Kick arrière', desc: 'Monte D, jambe G tendue vers l\'arrière (fessiers), descends.', styles: ['diag', 'wave', 'pump'], beats: [
+    [G(-NX), T(NX)], [[-14, STEP + 28, -1.1], T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
+  mambo: { lvl: 2, name: 'Mambo sur le step', desc: 'Monte, avance un pied sur le bord du step puis l\'autre, redescends. 8 temps.', styles: ['hips', 'alt', 'box'], beats: [
+    [G(-NX), T(NX)], [T(-NX), T(NX)], [[-NX, STEP, 0.45], T(NX)], [T(-NX), T(NX)],
+    [T(-NX), [NX, STEP, 0.45]], [T(-NX), T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
+  corner: { lvl: 2, name: 'Genou dans le coin', desc: 'Monte G au bout du step, genou D vers le coin, redescends.', styles: ['pump', 'biceps', 'diag'], beats: [
+    [T(-60), G(NX)], [T(-60), [-30, STEP + 52, 0]], [T(-60), G(NX)], [G(-NX), G(NX)]] },
+  lunge2: { lvl: 3, name: 'Fente arrière depuis le step', desc: 'Monte sur le step, recule un pied au sol en fente, remonte, change de pied. 8 temps.', styles: ['pump', 'cross', 'hips'], beats: [
+    [G(-NX), T(NX)], [T(-NX), T(NX)], [[-NX, 0, -1.3], T(NX)], [T(-NX), T(NX)],
+    [T(-NX), [NX, 0, -1.3]], [T(-NX), T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
+  charleston: { lvl: 3, name: 'Charleston', desc: 'Monte D, coup de pied G devant, redescends G, pointe D derrière. 8 temps.', styles: ['alt', 'wave', 'box'], beats: [
+    [G(-NX), T(NX)], [[-12, STEP + 40, 0.75], T(NX)], [G(-NX), T(NX)], [G(-NX), [NX, 12, -1.35]],
+    [G(-NX), T(NX)], [[-12, STEP + 40, 0.75], T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
   over: { lvl: 3, name: 'Over the top', desc: 'Traverse le step d\'un côté à l\'autre en passant dessus. 8 temps.', styles: ['alt', 'pump', 'wave'],
           fixed: true, startLane: 'left', endLane: 'right', beats: [
     [Sd(-150, -0.38), Sd(-134, 0.38)], [Sd(-150, -0.38), Sd(-134, 0.38)],
@@ -533,6 +551,11 @@ let SEQ = [];
 const ZONES = [['mix', 'Varié'], ['back', 'Derrière'], ['front', 'Devant'], ['sides', 'Côtés']];
 const LANE_ORDER = ['back', 'back', 'front', 'right', 'back', 'front', 'left', 'back'];
 let zone = store.get('zone', 'mix');
+// variation : 0 répétitive (on répète chaque pas), 1 normale, 2 variée (ordre, bras et places au hasard), 3 surprise (tout se mélange)
+const VARIETY = [[0, 'Répétitive'], [1, 'Normale'], [2, 'Variée'], [3, 'Surprise']];
+let variety = clamp(+store.get('variety', 1) || 0, 0, 3), varSeed = 12345;
+const LANES_OF = { mix: ['back', 'back', 'front', 'left', 'right'], back: ['back'], front: ['front'], sides: ['left', 'right'] };
+function rng(seed) { let x = (seed >>> 0) || 1; return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
 const laneFor = n => zone === 'back' ? 'back' : zone === 'front' ? 'front' : zone === 'sides' ? (n % 2 ? 'left' : 'right') : LANE_ORDER[n % LANE_ORDER.length];
 const mirrorLane = l => ({ left: 'right', right: 'left' }[l] || l);
 
@@ -566,37 +589,58 @@ function transition(a, b) {
 }
 function buildSeq() {
   const keys = MOVE_KEYS.filter(k => selected.has(k));
-  const rounds = keys.length > 1 ? 3 : 2;
+  const v = variety, R = rng(varSeed + v * 7919), pick = a => a[Math.floor(R() * a.length)];
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const rounds = v === 0 ? 2 : v === 3 ? 4 : keys.length > 1 ? 3 : 2;
+  const reps = v === 0 ? 2 : 1;                         // répétitive : chaque pas est fait deux fois de chaque côté
+  const allStyles = Object.keys(ARMS);
   const blocks = [];
-  let cur = 'back', first = null, n = 0;
+  let cur = 'back', first = null, n = 0, laneHold = null;
   const go = to => {
     if (first === null) first = to;
     const ps = transition(cur, to);
     if (ps.length) blocks.push({ name: 'Déplacement autour du step', lvl: 0, style: 'alt', poses: ps });
     cur = to;
   };
+  const laneOf = () => {
+    if (v === 0) { if (laneHold === null || n % 4 === 0) laneHold = laneFor(Math.floor(n / 4)); n++; return laneHold; }
+    if (v === 1) return laneFor(n++);
+    n++; return pick(LANES_OF[zone] || LANES_OF.mix);
+  };
   ringFlip = false;
   for (let r = 0; r < rounds; r++) {
     let order = keys.slice();
-    const h = Math.floor(order.length / 2);
-    if (r === 1) order = order.slice(h).concat(order.slice(0, h));
-    if (r === 2) order.reverse();
+    if (v >= 2) shuffle(order);
+    else {
+      const h = Math.floor(order.length / 2);
+      if (r === 1) order = order.slice(h).concat(order.slice(0, h));
+      if (r === 2) order.reverse();
+    }
     order.forEach((k, oi) => {
-      const m = MOVES[k], style = m.styles[(r + oi) % m.styles.length];
-      const lane = laneFor(n++);
-      [0, 1].forEach(side => {
+      const m = MOVES[k];
+      const style = v === 0 ? m.styles[r % m.styles.length] : v === 1 ? m.styles[(r + oi) % m.styles.length]
+                  : v === 2 ? pick(m.styles) : (R() < 0.6 ? pick(m.styles) : pick(allStyles));
+      const lane = laneOf();
+      // surprise : parfois un seul côté, en commençant par l'un ou l'autre
+      let sides = [0, 1];
+      if (v === 3) sides = R() < 0.45 ? [R() < 0.5 ? 0 : 1] : (R() < 0.5 ? [0, 1] : [1, 0]);
+      else if (v === 2 && R() < 0.5) sides = [1, 0];
+      sides.forEach(side => {
         const startLane = m.fixed ? (side ? mirrorLane(m.startLane) : m.startLane) : lane;
         const endLane = m.fixed ? (side ? mirrorLane(m.endLane) : m.endLane) : lane;
-        go(startLane);
-        const poses = m.beats.map((bt, j) => {
-          const [al, ar] = ARMS[style](j % 4);
-          let p = { l: bt[0], r: bt[1], al, ar, turn: bt[2] || 0 };
-          if (side) p = mirror(p);
-          if (!m.fixed) { p.l = mapFoot(p.l, lane, true); p.r = mapFoot(p.r, lane, false); }
-          return p;
-        });
-        blocks.push({ name: m.name, lvl: m.lvl, style, poses });
-        cur = endLane;
+        for (let rp = 0; rp < (m.fixed ? 1 : reps); rp++) {
+          go(startLane);
+          const st2 = v === 3 && rp === 0 && R() < 0.3 ? pick(allStyles) : style;
+          const poses = m.beats.map((bt, j) => {
+            const [al, ar] = ARMS[st2](j % 4);
+            let p = { l: bt[0], r: bt[1], al, ar, turn: bt[2] || 0 };
+            if (side) p = mirror(p);
+            if (!m.fixed) { p.l = mapFoot(p.l, lane, true); p.r = mapFoot(p.r, lane, false); }
+            return p;
+          });
+          blocks.push({ name: m.name, lvl: m.lvl, style: st2, poses });
+          cur = endLane;
+        }
       });
     });
   }
@@ -608,6 +652,25 @@ function buildSeq() {
   });
   S.lastIdx = null;
   renderCycle();
+}
+function renderVariety() {
+  const w = $('#varChips'); if (!w) return;
+  w.innerHTML = '';
+  VARIETY.forEach(([v, label]) => {
+    const b = document.createElement('button'); b.textContent = label; b.className = variety === v ? 'on' : '';
+    b.onclick = () => { variety = v; store.set('variety', v); buildSeq(); renderVariety(); };
+    w.appendChild(b);
+  });
+  if (variety >= 2) {
+    const b = document.createElement('button'); b.textContent = '🔀 Nouveau mélange';
+    b.onclick = () => { varSeed = (Math.random() * 1e9) | 0; buildSeq(); };
+    w.appendChild(b);
+  }
+  const d = $('#varDesc');
+  if (d) d.textContent = ['Chaque pas est répété plusieurs fois au même endroit : idéal pour apprendre.',
+    'Enchaînement équilibré : chaque pas des deux côtés, bras qui changent à chaque tour.',
+    'Ordre des pas, bras et places autour du step tirés au hasard.',
+    'Tout se mélange : pas sur un seul côté, bras inattendus, déplacements fréquents.'][variety];
 }
 function renderBoard() {
   const box = $('#boardBox'); if (!box) return;
@@ -3465,7 +3528,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyT') doTap();
 });
 
-buildSeq(); renderZone(); renderChoreo(); renderLook(); syncPlayBtn(); initStage();
+buildSeq(); renderZone(); renderVariety(); renderChoreo(); renderLook(); syncPlayBtn(); initStage();
 requestAnimationFrame(frame);
 window.__step = { S, Y, LIVE, seqAt, ease, SEQLEN: () => SEQ.length, startLive, stopLive, detectTempo, foldBpm, cleanTitle, parseYT, ytSearch, selected: () => selected, LOOK, hasKey: () => !!CFG.key };
 })();
