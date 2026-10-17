@@ -119,7 +119,7 @@ button.primary{background:linear-gradient(135deg,var(--pink),var(--violet));bord
 .drawer.open{transform:none}
 .dhead{display:flex;gap:8px;align-items:center;padding:10px 10px 4px}
 .tabs{display:flex;gap:4px;flex:1;background:rgba(0,0,0,.25);border-radius:14px;padding:4px}
-.tabs button{flex:1;border:0;background:transparent;border-radius:10px;padding:8px 4px;color:var(--mute);font-weight:600;font-size:13px}
+.tabs button{flex:1;border:0;background:transparent;border-radius:10px;padding:8px 2px;color:var(--mute);font-weight:600;font-size:12.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tabs button.on{background:linear-gradient(135deg,var(--pink),var(--violet));color:#fff}
 .close{width:38px;height:38px;padding:0;border-radius:12px}
 .dbody{overflow:auto;padding:8px 14px 18px;flex:1}
@@ -224,6 +224,31 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
 .plpick .chips{margin:0}
 .plpick form{display:flex;gap:6px}
 
+/* ── temps de musique, classement, pause « toujours là ? » ── */
+.timer{pointer-events:auto;margin:0 auto 0 14px;display:flex;align-items:baseline;gap:6px;padding:7px 13px;border-radius:999px;font-size:13px;white-space:nowrap;flex:none}
+.tabs button.ico{flex:0 0 42px;font-size:15px}
+.timer b{font-variant-numeric:tabular-nums}
+.timer small{color:var(--mute);font-size:11.5px}
+.pstats.three{grid-template-columns:repeat(3,1fr)}
+.lbmsg{font-size:12.5px;color:var(--mute);margin:6px 0 2px;line-height:1.4}
+.lbmsg:empty{display:none}
+.lb{list-style:none;margin:6px 0 8px;padding:0;display:grid;gap:4px}
+.lb li{display:flex;gap:10px;align-items:center;padding:7px 10px;border-radius:10px;background:rgba(255,255,255,.04);font-size:13.5px;border:1px solid transparent}
+.lb li.me{background:rgba(255,61,154,.14);border-color:rgba(255,61,154,.5)}
+.lb .rk{width:28px;text-align:center;color:var(--mute);font-weight:700;flex:none}
+.lb .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb b{font-variant-numeric:tabular-nums;font-weight:700}
+.lb .empty{justify-content:center;color:var(--mute)}
+.still{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:rgba(8,3,20,.62);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);padding:16px}
+.still[hidden]{display:none}
+.stillc{max-width:340px;text-align:center;padding:22px 20px;display:grid;gap:10px;justify-items:center}
+.stillc .big{font-size:44px;line-height:1}
+.stillc b{font-size:20px}
+.stillc p{margin:0;color:var(--mute);font-size:14px;line-height:1.45}
+.stillc button{font-size:16px;padding:12px 22px}
+@media (max-width:1050px){ .timer small{display:none} }
+@media (max-width:640px){ .timer{margin-left:8px;padding:6px 11px} }
+
 /* ── pas à venir (pictogrammes qui défilent vers la ligne « maintenant ») ── */
 .nextbox{position:absolute;right:16px;bottom:104px;width:min(520px,50vw);height:134px;z-index:5;padding:0;border-radius:18px;overflow:hidden;pointer-events:none;transition:opacity .35s}
 .nextbox canvas{width:100%;height:100%;display:block}
@@ -286,6 +311,7 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
 
     <header class="bar">
       <div class="logo">👟 <span>StepCoach</span></div>
+      <button class="timer glass" id="timer" title="Temps de musique et classement">🏆 <b id="timerDay">0 min</b><small>aujourd'hui</small></button>
       <nav class="nav glass">
         <button data-open="music" class="hint">🎵 <span>Musique</span></button>
         <button data-open="choreo">💃 <span>Pas</span></button>
@@ -336,6 +362,12 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
       <button class="bpmchip" id="bpmChip" title="Tape ici en rythme (4 fois ou plus) pour caler les pas"><b id="bpm">120</b><small id="bpmLbl">BPM</small></button>
     </div>
 
+    <div id="still" class="still" hidden role="dialog" aria-modal="true" aria-labelledby="stillT">
+      <div class="stillc glass"><div class="big">💪</div><b id="stillT">Toujours là ?</b>
+        <p>La musique est en pause. Ça fait 20 minutes que tu danses : touche le bouton pour continuer, ton temps continue de compter.</p>
+        <button class="primary" id="stillGo">Je continue ▶</button></div>
+    </div>
+
     <!-- détection du son : automatique, aucun contrôle visible -->
     <div id="live" hidden>
       <button id="liveTab"></button><button id="liveMic"></button><button id="liveStop"></button>
@@ -347,7 +379,8 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
           <button data-tab="music" class="on">Musique</button>
           <button data-tab="choreo">Pas</button>
           <button data-tab="look">Personnage</button>
-          <button data-tab="adv">Réglages</button>
+          <button data-tab="adv" class="ico" title="Réglages" aria-label="Réglages">⚙</button>
+          <button data-tab="rank" class="ico" title="Classement" aria-label="Classement">🏆</button>
         </div>
         <button class="close" id="drawerClose" aria-label="Fermer">✕</button>
       </div>
@@ -417,6 +450,19 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
           <div class="row">
             <button id="lookRandom">🎲 Aléatoire</button>
             <button id="lookReset">Réinitialiser</button>
+          </div>
+        </div>
+
+        <!-- ───────── Classement ───────── -->
+        <div id="tab-rank" hidden>
+          <div class="opt"><h4>⏱ Mon temps de musique</h4><div class="pstats three" id="mtStats"></div>
+            <p class="note" style="margin:4px 0 0">Compté seulement quand la musique joue vraiment, appli à l'écran.</p></div>
+          <div class="opt" id="lbBox"><h4>🏆 Classement</h4>
+            <form id="lbForm"><input type="text" id="lbPseudo" maxlength="20" placeholder="Choisis ton pseudo…" autocomplete="nickname" aria-label="Pseudo"><button class="primary">OK</button></form>
+            <div class="lbmsg" id="lbMsg"></div>
+            <div class="chips" id="lbModes"><button data-m="jour" class="on">Aujourd'hui</button><button data-m="total">Depuis toujours</button></div>
+            <ol class="lb" id="lbList"></ol>
+            <p class="note">Pour que ce soit juste : seul le temps où la musique joue compte, l'heure de ton appareil n'est pas utilisée, et toutes les 20 min la musique se met en pause, touche « Je continue » pour que ton temps compte encore.</p>
           </div>
         </div>
 
@@ -3071,7 +3117,8 @@ function liveActive() {
   return t - (LIVE.loudAt || 0) < 4000;
 }
 // progression (enregistrée sur l'appareil, et sur le compte Google si connecté)
-const PROG = Object.assign({ danceSec: 0, days: [], moves: {}, updated: 0 }, store.get('progress', {}));
+const PROG = Object.assign({ danceSec: 0, days: [], moves: {}, updated: 0, musicSec: 0, mDays: {} }, store.get('progress', {}));
+if (!PROG.mDays || typeof PROG.mDays !== 'object') PROG.mDays = {};
 const today = () => new Date().toISOString().slice(0, 10);
 const moveLevel = k => { const m = PROG.moves[k]; if (!m || !m.reps) return 0; return m.reps >= 8 && (m.best || 0) >= 100 ? 3 : m.reps >= 4 ? 2 : 1; };
 const MOVE_LV = [null, ['Découvert', '#ffd23d'], ['En progrès', '#27e1ff'], ['Maîtrisé ✓', '#5dff9c']];
@@ -3793,7 +3840,8 @@ async function searchItunes(q) {
 const FILE_CFG = window.STEPCOACH_CONFIG || {};
 // identifiant client OAuth de StepCoach (public) : écrit ici aussi, au cas où une ancienne copie de config.js serait en cache
 const DEFAULT_CLIENT = '580482126850-optneno2slbhm0jmlaeq7rrg3tdvjv23.apps.googleusercontent.com';
-const CFG = { key: FILE_CFG.apiKey || '', client: FILE_CFG.oauthClientId || DEFAULT_CLIENT };
+const DEFAULT_BOARD = '';                  // URL du serveur de classement (Apps Script), voir serveur/LISEZMOI.md
+const CFG = { key: FILE_CFG.apiKey || '', client: FILE_CFG.oauthClientId || DEFAULT_CLIENT, board: FILE_CFG.leaderboardUrl || DEFAULT_BOARD };
 
 function loadScript(src) {
   return new Promise((res, rej) => {
@@ -4157,10 +4205,12 @@ function userData() {
   store.set('progress', PROG);
   return { v: 2, updated: Math.max(PROG.updated || 0, +store.get('localUpdated', 0)), look: LOOK, board: BOARD, variety, zone,
            moves: [...selected], train: { move: TRAIN.move, bpm: TRAIN.bpm, step: !!store.get('trStep', false), marks: TRAIN.marks },
-           vol: +$('#vol').value, nextOn: NEXT.on, tempos: TEMPOS, lastYT: store.get('lastYT', null), progress: PROG };
+           vol: +$('#vol').value, nextOn: NEXT.on, tempos: TEMPOS, lb: LB.id ? { id: LB.id, cle: LB.cle, pseudo: LB.pseudo } : null, lastYT: store.get('lastYT', null), progress: PROG };
 }
 function mergeProgress(a, b) {
-  const out = { danceSec: Math.max(a.danceSec || 0, b.danceSec || 0), days: [...new Set([...(a.days || []), ...(b.days || [])])].sort(), moves: {}, updated: Math.max(a.updated || 0, b.updated || 0) };
+  const out = { danceSec: Math.max(a.danceSec || 0, b.danceSec || 0), days: [...new Set([...(a.days || []), ...(b.days || [])])].sort(), moves: {}, updated: Math.max(a.updated || 0, b.updated || 0),
+                musicSec: Math.max(a.musicSec || 0, b.musicSec || 0), mDays: Object.assign({}, a.mDays || {}) };
+  Object.entries(b.mDays || {}).forEach(([d, v]) => { out.mDays[d] = Math.max(out.mDays[d] || 0, v || 0); });
   new Set([...Object.keys(a.moves || {}), ...Object.keys(b.moves || {})]).forEach(k => {
     const x = (a.moves || {})[k] || {}, y = (b.moves || {})[k] || {};
     out.moves[k] = { reps: Math.max(x.reps || 0, y.reps || 0), best: Math.max(x.best || 0, y.best || 0), last: Math.max(x.last || 0, y.last || 0) };
@@ -4181,6 +4231,7 @@ function applyUserData(d) {
       if (typeof d.train.step === 'boolean') { store.set('trStep', d.train.step); if (!TRAIN.on) TRAIN.step = d.train.step; }
       if (typeof d.train.marks === 'boolean') { TRAIN.marks = d.train.marks; store.set('trMarks', TRAIN.marks); }
     }
+    if (d.lb && d.lb.id && d.lb.cle) { if (d.lb.id !== LB.id) { LB.acc = 0; store.set('lbAcc', 0); } LB.id = d.lb.id; LB.cle = d.lb.cle; LB.pseudo = d.lb.pseudo || ''; lbStore(false); }
     if (typeof d.nextOn === 'boolean') { NEXT.on = d.nextOn; store.set('nextOn', NEXT.on); $('#nextOn').checked = NEXT.on; }
     if (typeof d.vol === 'number') { $('#vol').value = clamp(d.vol, 0, 1); store.set('vol', +$('#vol').value); if (S.gain) S.gain.gain.value = +$('#vol').value; }
     if (d.tempos && typeof d.tempos === 'object') { Object.keys(d.tempos).forEach(k => { const a = d.tempos[k], b = TEMPOS[k]; if (a && a.b && (!b || (a.t || 0) > (b.t || 0))) TEMPOS[k] = a; }); store.set('tempos', TEMPOS); }
@@ -4503,7 +4554,8 @@ $$('[data-preset]').forEach(b => b.onclick = () => {
 const drawerEl = $('#drawer');
 function showTab(t) {
   $$('.tabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === t));
-  ['music', 'choreo', 'look', 'adv'].forEach(n => { $('#tab-' + n).hidden = n !== t; });
+  ['music', 'choreo', 'look', 'adv', 'rank'].forEach(n => { $('#tab-' + n).hidden = n !== t; });
+  if (t === 'rank') renderRank(true);
   $$('.nav button[data-open]').forEach(x => x.classList.toggle('on', drawerEl.classList.contains('open') && x.dataset.open === t));
 }
 function openDrawer(t) {
@@ -4532,6 +4584,151 @@ $('#ytForm').addEventListener('submit', e => { e.preventDefault(); const q = $('
   b.onclick = () => { $('#q').value = s; searchItunes(s); };
   $('#chips').appendChild(b);
 });
+
+/* ════════════════════════════════════════════════════════════
+   Temps de musique + classement
+   Seul le temps où la musique joue vraiment compte (page visible, vidéo qui avance, son non coupé). Le serveur
+   (horloge du serveur, jamais plus que le temps réellement écoulé) fait foi pour le classement ; toutes les
+   20 min de musique, pause et « Je continue ».
+   ════════════════════════════════════════════════════════════ */
+const MT_PAUSE = 20 * 60, LB_EVERY = 60;
+const LB = { id: store.get('lbId', ''), cle: store.get('lbCle', ''), pseudo: store.get('lbPseudo', ''), pend: 0, acc: +store.get('lbAcc', 0) || 0,
+             waiting: false, resume: null, sending: false, data: null, mode: 'jour', ytT: null, last: performance.now(), lastOn: 0, fetched: 0 };
+const dayKeyLocal = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+function fmtDur(sec, long) {
+  const m = Math.floor((sec || 0) / 60), h = Math.floor(m / 60);
+  return h ? `${h} h ${String(m % 60).padStart(2, '0')}` : long && sec < 60 ? `${Math.floor(sec || 0)} s` : `${m} min`;
+}
+function lbStore(sync = true) { store.set('lbId', LB.id); store.set('lbCle', LB.cle); store.set('lbPseudo', LB.pseudo); if (sync) cloudSaveSoon(); }
+function musicOn(dt) {
+  if (document.visibilityState !== 'visible' || LB.waiting) { LB.ytT = null; return false; }
+  if (S.mode === 'yt') {
+    if (!Y.player || !Y.ready || Y.state !== 1) { LB.ytT = null; return false; }
+    let t = null, muted = false;
+    try { t = Y.player.getCurrentTime(); muted = Y.player.isMuted() || Y.player.getVolume() === 0; } catch (_) {}
+    const prev = LB.ytT; LB.ytT = t;
+    if (muted || t === null || prev === null) return false;
+    const adv = t - prev;
+    return adv > dt * 0.5 && adv < dt * 2.5 + 1;           // la vidéo avance vraiment (ni bloquée, ni sautée en avant)
+  }
+  LB.ytT = null;
+  return S.mode === 'preview' && !!S.playing && +$('#vol').value > 0.02;
+}
+function renderTimer() {
+  const today = PROG.mDays[dayKeyLocal()] || 0;
+  $('#timerDay').textContent = fmtDur(today, true);
+  if (!$('#tab-rank').hidden) renderMt();
+}
+function renderMt() {
+  let week = 0; const d = new Date();
+  for (let i = 0; i < 7; i++) { const k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); week += PROG.mDays[k] || 0; d.setDate(d.getDate() - 1); }
+  $('#mtStats').innerHTML = `<div><b>${fmtDur(PROG.mDays[dayKeyLocal()] || 0, true)}</b><small>aujourd'hui</small></div>` +
+    `<div><b>${fmtDur(week, true)}</b><small>7 derniers jours</small></div><div><b>${fmtDur(PROG.musicSec, true)}</b><small>au total</small></div>`;
+}
+// chaque seconde : temps de musique (horloge monotone, le changement d'heure de l'appareil n'a aucun effet)
+setInterval(() => {
+  const now = performance.now(), dt = Math.min(3, (now - LB.last) / 1000); LB.last = now;
+  if (!musicOn(dt)) {
+    if (LB.id && LB.pend >= 5 && !LB.sending && now - LB.lastOn > 4000) lbSend();
+    return;
+  }
+  LB.lastOn = now;
+  PROG.musicSec = (PROG.musicSec || 0) + dt;
+  const d = dayKeyLocal(); PROG.mDays[d] = (PROG.mDays[d] || 0) + dt;
+  progTouch(false);
+  if (LB.id && CFG.board) {
+    LB.pend += dt; LB.acc += dt;
+    if (Math.floor(LB.acc) % 10 === 0) store.set('lbAcc', LB.acc);
+    if (LB.acc >= MT_PAUSE) askContinue();
+    else if (LB.pend >= LB_EVERY && !LB.sending) lbSend();
+  }
+  renderTimer();
+}, 1000);
+{ const keys = Object.keys(PROG.mDays).sort(); if (keys.length > 90) keys.slice(0, keys.length - 90).forEach(k => delete PROG.mDays[k]); }
+async function lbCall(body, keepalive) {
+  // corps en texte brut : requête « simple », sans pré-vol CORS (Apps Script répond avec Access-Control-Allow-Origin: *)
+  const r = await fetch(CFG.board, { method: 'POST', body: JSON.stringify(body), keepalive: !!keepalive });
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.err || 'erreur du serveur');
+  return j;
+}
+async function lbSend(keepalive) {
+  if (!LB.id || !CFG.board || LB.pend < 1 || LB.sending) return;
+  const sec = Math.round(LB.pend * 10) / 10; LB.sending = true;
+  try {
+    const j = await lbCall({ a: 'temps', id: LB.id, cle: LB.cle, s: sec }, keepalive);
+    LB.pend = Math.max(0, LB.pend - sec);
+    LB.srv = { t: j.total, j: j.jour };
+    if (j.pause && !LB.waiting) askContinue();
+    if (!$('#tab-rank').hidden && Date.now() - LB.fetched > 20000) renderRank(true);
+  } catch (err) {
+    if (/joueur inconnu/.test(err.message)) { LB.id = LB.cle = LB.pseudo = ''; lbStore(); renderRank(false); }
+  } finally { LB.sending = false; }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { store.set('lbAcc', LB.acc); lbSend(true); } });
+// pause « toujours là ? » : la musique s'arrête, le temps ne compte plus jusqu'à la réponse
+function askContinue() {
+  if (LB.waiting) return;
+  LB.waiting = true; LB.resume = null;
+  $('#still').hidden = false;
+  try {
+    if (S.mode === 'yt' && Y.player && Y.state === 1) { Y.player.pauseVideo(); LB.resume = 'yt'; }
+    else if (S.mode === 'preview' && S.playing) { LB.resume = 'preview'; S.pausedPos = songPos().pos; stopSong(); }
+  } catch (_) {}
+  syncPlayBtn();
+  try { $('#stillGo').focus(); } catch (_) {}
+  lbSend();
+}
+$('#stillGo').onclick = async () => {
+  $('#still').hidden = true; LB.waiting = false; LB.acc = 0; store.set('lbAcc', 0);
+  try {
+    if (LB.resume === 'yt' && Y.player) Y.player.playVideo();
+    else if (LB.resume === 'preview' && S.song) startSong(S.pausedPos);
+  } catch (_) {}
+  LB.resume = null; syncPlayBtn();
+  if (LB.id && CFG.board) { try { await lbCall({ a: 'continuer', id: LB.id, cle: LB.cle }); } catch (_) {} }
+};
+function lbMsg(html) { $('#lbMsg').innerHTML = html || ''; }
+async function renderRank(fetchIt) {
+  renderMt();
+  const box = $('#lbBox');
+  if (!CFG.board) {
+    $('#lbForm').hidden = true; $('#lbModes').hidden = true; $('#lbList').innerHTML = '';
+    lbMsg('Le classement entre danseurs arrive très bientôt. Ton temps de musique est déjà compté ci-dessus.');
+    return;
+  }
+  $('#lbForm').hidden = false; $('#lbModes').hidden = false;
+  const inp = $('#lbPseudo'); if (document.activeElement !== inp) inp.value = LB.pseudo || '';
+  $('#lbForm button').textContent = LB.id ? 'Renommer' : 'Rejoindre';
+  if (!LB.id && !$('#lbMsg').dataset.keep) lbMsg('Choisis un pseudo pour apparaître dans le classement' + (GG.remember ? ' (il suit ton compte Google).' : '. Connecte-toi avec Google pour le garder sur tous tes appareils.'));
+  $$('#lbModes button').forEach(b => b.classList.toggle('on', b.dataset.m === LB.mode));
+  if (fetchIt) {
+    LB.fetched = Date.now();
+    try { LB.data = await lbCall({ a: 'top', id: LB.id || '' }); }
+    catch (err) { $('#lbList').innerHTML = `<li class="empty">⚠️ Classement injoignable (${esc(err.message)})</li>`; return; }
+  }
+  const d = LB.data; if (!d) { $('#lbList').innerHTML = '<li class="empty">Chargement…</li>'; return; }
+  const c = d[LB.mode], medal = ['🥇', '🥈', '🥉'];
+  if (LB.id && d.moi) lbMsg(`Tu joues sous le pseudo <b>${esc(d.moi.p)}</b> · ${c.rang ? `<b>${c.rang}<sup>${c.rang === 1 ? 'er' : 'e'}</sup></b> sur ${c.n}` : 'pas encore classé·e'} ${LB.mode === 'jour' ? "aujourd'hui" : 'depuis toujours'}.`);
+  $('#lbList').innerHTML = c.liste.length ? c.liste.map((x, i) => `<li class="${x.moi ? 'me' : ''}"><span class="rk">${medal[i] || i + 1}</span><span class="nm">${esc(x.p)}</span><b>${fmtDur(x.s)}</b></li>`).join('')
+    : `<li class="empty">Personne n'a encore dansé ${LB.mode === 'jour' ? "aujourd'hui" : ''} : à toi de jouer !</li>`;
+}
+$$('#lbModes button').forEach(b => b.onclick = () => { LB.mode = b.dataset.m; renderRank(false); });
+$('#lbForm').onsubmit = async e => {
+  e.preventDefault();
+  const p = $('#lbPseudo').value.replace(/\s+/g, ' ').trim(); if (!p || !CFG.board) return;
+  const btn = $('#lbForm button'); btn.disabled = true; lbMsg('…');
+  try {
+    const j = await lbCall({ a: 'inscription', pseudo: p, ...(LB.id && { id: LB.id, cle: LB.cle }) });
+    if (j.id !== LB.id) { LB.acc = 0; LB.pend = 0; store.set('lbAcc', 0); }      // nouveau joueur : on repart de zéro
+    LB.id = j.id; LB.cle = j.cle; LB.pseudo = j.pseudo; lbStore();
+    $('#lbPseudo').blur(); renderRank(true);
+  } catch (err) { lbMsg('⚠️ ' + esc(err.message)); }
+  finally { btn.disabled = false; }
+};
+$('#timer').onclick = () => openDrawer('rank');
+setInterval(() => { if (!$('#tab-rank').hidden && drawerEl.classList.contains('open')) renderRank(true); }, 60000);
+renderTimer();
 
 $('#gLogin').onclick = googleLogin;
 $('#gLogout').onclick = googleLogout;
@@ -4643,7 +4840,7 @@ buildSeq(); renderZone(); renderVariety(); renderTrain(); renderChoreo(); render
   setInterval(() => { if (GG.remember && PROG.updated > (CLOUD.lastProg || 0)) { CLOUD.lastProg = PROG.updated; store.set('progress', PROG); cloudSaveSoon(); } }, 60000);
   window.addEventListener('pagehide', () => store.set('progress', PROG)); }
 requestAnimationFrame(frame);
-window.__step = { S, Y, LIVE, seqAt, ease, TRAIN, startTraining, stopTraining, poseCue, GG, showMyPlaylists, ytSearch, PROG, cloudLoad, cloudSave, CLOUD, restoreGoogle, TEMPOS, SEQLEN: () => SEQ.length, startLive, stopLive, detectTempo, foldBpm, cleanTitle, parseYT, ytSearch, selected: () => selected, LOOK, hasKey: () => !!CFG.key };
+window.__step = { S, Y, LIVE, seqAt, ease, TRAIN, startTraining, stopTraining, poseCue, GG, showMyPlaylists, ytSearch, PROG, cloudLoad, cloudSave, CLOUD, restoreGoogle, TEMPOS, LB, CFG, askContinue, SEQLEN: () => SEQ.length, startLive, stopLive, detectTempo, foldBpm, cleanTitle, parseYT, ytSearch, selected: () => selected, LOOK, hasKey: () => !!CFG.key };
 })();
 </script>
 </body>
