@@ -684,7 +684,7 @@ const MOVES = {
   kick: { lvl: 1, name: 'Coup de pied avant', desc: 'Monte D, donne un petit coup de pied G vers l\'avant, descends G puis D.', styles: ['pump', 'box', 'cross'], beats: [
     [G(-NX), T(NX)], [[-30, STEP + 38, 1.5], T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
   curl: { lvl: 1, name: 'Talon-fesse', desc: 'Monte D, ramène le talon G vers la fesse, descends G puis D.', styles: ['biceps', 'pump', 'alt'], beats: [
-    [G(-NX), T(NX)], [[-24, STEP + 62, -0.6], T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
+    [G(-NX), T(NX)], [[-12, STEP + 64, -0.75], T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
   glute: { lvl: 2, name: 'Kick arrière', desc: 'Monte D, jambe G tendue vers l\'arrière (fessiers), descends.', styles: ['diag', 'wave', 'pump'], beats: [
     [G(-NX), T(NX)], [[-36, STEP + 34, -1.05], T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
   mambo: { lvl: 2, name: 'Mambo sur le step', desc: 'Monte, avance un pied sur le bord du step puis l\'autre, redescends. 8 temps.', styles: ['hips', 'alt', 'box'], beats: [
@@ -1539,7 +1539,9 @@ function buildStage(T, FX) {
         const ft = i ? fr : fl;
         // jambe levée devant (genou) : le genou s'ouvre un peu vers l'extérieur et monte, pour qu'on le voie bien de face
         const upK = clamp((ankles[i].y - Math.min(ankles[0].y, ankles[1].y) - 22) / 30, 0, 1) * clamp((ankles[i].clone().sub(hips[i]).dot(fwd) + 4) / 20, 0, 1);
-        const pole = fwd.clone().addScaledVector(right, sd * (0.25 + 0.75 * upK)).add(_v1.set(0, 0.35 * upK, 0));
+        // pied ramené derrière (talon-fesse, kick arrière) : la cuisse reste à la verticale, le genou pointe vers le sol
+        const bk = clamp((-ankles[i].clone().sub(hips[i]).dot(fwd) - 12) / 18, 0, 1) * clamp((ankles[i].y - Math.min(ankles[0].y, ankles[1].y) - 18) / 25, 0, 1);
+        const pole = fwd.clone().multiplyScalar(1 - 0.6 * bk).addScaledVector(right, sd * (0.25 + 0.75 * upK) * (1 - bk)).add(_v1.set(0, 0.35 * upK - 1.3 * bk, 0));
         const r = ik3(hips[i], ankles[i], D.TH, D.SH, pole);
         J.knees[i].copy(r.mid); J.ankles[i].copy(r.end);
         J.footY[i] = r.end.y - ANK;
@@ -1963,23 +1965,33 @@ function buildStage(T, FX) {
       const hp = scr(J.hips[i]), kn = scr(J.knees[i]), an = scr(J.ankles[i]);
       const uh = uAt(J.hips[i]), uk = uAt(J.knees[i]), ua = uAt(J.ankles[i]);
       const bs = LOOK.bottomStyle;
-      layer(c, [{ p: c2 => capsule(c2, hp, kn, r.th * uh, r.kn * uk, 0.05, 0.35), m: m.skin, fill: cel(c, hp, kn, r.th * uh, m.skin) },
-                { p: c2 => capsule(c2, kn, an, r.kn * uk, r.an * ua, 0.24, 0.38), m: m.skin, fill: cel(c, kn, an, r.kn * uk, m.skin) }], lw);
+      // pied ramené derrière (talon-fesse, kick arrière) : tibia et chaussure passent DERRIÈRE la cuisse
+      const back = vz(J.ankles[i]) < vz(J.knees[i]) - 6 && an.y < kn.y + 6 * uk;
+      const skinTh = { p: c2 => capsule(c2, hp, kn, r.th * uh, r.kn * uk, 0.05, 0.35), m: m.skin, fill: cel(c, hp, kn, r.th * uh, m.skin) };
+      const skinSh = { p: c2 => capsule(c2, kn, an, r.kn * uk, r.an * ua, 0.24, 0.38), m: m.skin, fill: cel(c, kn, an, r.kn * uk, m.skin) };
       // bas : [part de la cuisse, part du tibia, ampleur, évasement en bas]
       const cfg = { leggings: [1, 0.96, 0.5, 0], shorts: [0.36, 0, 1.6, 1.4], bike: [0.6, 0, 0.5, 0], joggers: [1, 0.9, 2.3, 0.4], skirt: [0.1, 0, 0.6, 0.4] }[bs];
       const [thC, shC, inf, fl] = cfg;
       const mid = (a, b, t) => ({ x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t) });
-      const pieces = [];
       const tEnd = mid(hp, kn, thC);
-      pieces.push({ p: c2 => capsule(c2, hp, tEnd, (r.th + inf) * uh, (lerp(r.th, r.kn, thC) + inf + (shC ? 0 : fl)) * uk, 0.05, 0.35, false, thC < 1), m: m.bot, fill: cel(c, hp, kn, (r.th + inf) * uh, m.bot) });
+      const botTh = { p: c2 => capsule(c2, hp, tEnd, (r.th + inf) * uh, (lerp(r.th, r.kn, thC) + inf + (shC ? 0 : fl)) * uk, 0.05, 0.35, false, thC < 1), m: m.bot, fill: cel(c, hp, kn, (r.th + inf) * uh, m.bot) };
+      let botSh = null;
       if (shC > 0) {
         const sEnd = mid(kn, an, shC);
-        pieces.push({ p: c2 => capsule(c2, kn, sEnd, (r.kn + inf) * uk, (lerp(r.kn, r.an, shC) + inf + fl) * ua, 0.2, 0.38, false, true), m: m.bot, fill: cel(c, kn, an, (r.kn + inf) * uk, m.bot) });
+        botSh = { p: c2 => capsule(c2, kn, sEnd, (r.kn + inf) * uk, (lerp(r.kn, r.an, shC) + inf + fl) * ua, 0.2, 0.38, false, true), m: m.bot, fill: cel(c, kn, an, (r.kn + inf) * uk, m.bot) };
       }
-      layer(c, pieces, lw);
-      if (bs === 'joggers') {
+      const cuff = () => {
+        if (bs !== 'joggers') return;
         const a = mid(kn, an, 0.82);
         layer(c, [{ p: c2 => capsule(c2, a, mid(kn, an, 0.93), (r.an + inf + 0.6) * ua, (r.an + inf + 0.6) * ua, 0, 0.4, true, true), m: m.bot, fill: m.bot.s }], lw * 0.8, true);
+      };
+      if (back) {
+        drawShoe(c, i);
+        layer(c, [skinSh], lw); if (botSh) layer(c, [botSh], lw); cuff();
+        layer(c, [skinTh], lw); layer(c, [botTh], lw);
+      } else {
+        layer(c, [skinTh, skinSh], lw);
+        layer(c, botSh ? [botTh, botSh] : [botTh], lw); cuff();
       }
       if ((bs === 'leggings' || bs === 'joggers' || bs === 'bike') && m.m !== 'sil') {   // bande latérale
         const hc = scr(J.H), side = Math.sign(hp.x - hc.x) || sd;
@@ -1987,11 +1999,12 @@ function buildStage(T, FX) {
         const end = bs === 'bike' ? tEnd : mid(kn, an, bs === 'joggers' ? 0.8 : 0.94);
         const offE = (p, q, rr) => { const o = off(p, q, rr); return { x: q.x + (o.x - p.x), y: q.y + (o.y - p.y) }; };
         const pts = bs === 'bike' ? [off(hp, end, (r.th + inf) * uh * 0.72), offE(hp, end, (lerp(r.th, r.kn, 0.6) + inf) * uk * 0.74)]
-                                  : [off(hp, kn, (r.th + inf) * uh * 0.72), offE(hp, kn, (r.kn + inf) * uk * 0.76), offE(kn, end, (lerp(r.kn, r.an, 0.9) + inf) * ua * 0.72)];
+                  : back ? [off(hp, kn, (r.th + inf) * uh * 0.72), offE(hp, kn, (r.kn + inf) * uk * 0.76)]
+                         : [off(hp, kn, (r.th + inf) * uh * 0.72), offE(hp, kn, (r.kn + inf) * uk * 0.76), offE(kn, end, (lerp(r.kn, r.an, 0.9) + inf) * ua * 0.72)];
         c.strokeStyle = m.acc.f; c.lineWidth = Math.max(1, 1.1 * uh); c.lineCap = 'round'; c.lineJoin = 'round';
         c.beginPath(); c.moveTo(pts[0].x, pts[0].y); for (let q = 1; q < pts.length; q++) c.lineTo(pts[q].x, pts[q].y); c.stroke();
       }
-      drawShoe(c, i);
+      if (!back) drawShoe(c, i);
     }
 
     // ── bras et mains ──
