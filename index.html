@@ -94,7 +94,14 @@ button.primary{background:linear-gradient(135deg,var(--pink),var(--violet));bord
 .beats i{flex:1;max-width:46px;height:5px;border-radius:4px;background:rgba(255,255,255,.14);transition:background .06s,transform .06s}
 .beats i.on{background:var(--cyan);transform:scaleY(1.7)}
 .beats i.on.one{background:var(--pink)}
-.bpmchip{flex:none;text-align:center;padding:6px 14px;border-radius:14px;background:rgba(255,255,255,.07);line-height:1}
+.bpmchip{flex:none;text-align:center;padding:6px 14px;border-radius:14px;background:rgba(255,255,255,.07);line-height:1;border:1px solid transparent;cursor:pointer;touch-action:manipulation;user-select:none}
+.bpmchip.tap{border-color:var(--cyan);background:rgba(39,225,255,.18)}
+.bpmform{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px}
+.bpmform a{color:var(--cyan);text-decoration:none;margin-right:auto}
+.bpmform input{width:70px;background:rgba(0,0,0,.3);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:5px 6px;font:inherit}
+.bpmform button{padding:5px 9px}
+.syncbtn{flex:none;width:44px;height:44px;padding:0;border-radius:50%;font-size:18px;touch-action:manipulation}
+.syncbtn.busy{border-color:var(--pink);animation:pulse 1.2s infinite}
 .bpmchip b{font-size:25px;font-variant-numeric:tabular-nums}
 .bpmchip small{display:block;color:var(--mute);font-size:10.5px;letter-spacing:1.2px;margin-top:3px}
 
@@ -297,6 +304,10 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
       <div class="ytframe"><div id="ytplayer"></div></div>
       <div class="ytside">
         <div id="ytinfo"></div>
+        <span id="ytTempo"></span>
+        <button id="ytSync">🎤 Caler les pas sur le son</button>
+        <form id="bpmForm" class="bpmform"><a id="tbLink" href="https://tunebat.com" target="_blank" rel="noopener">BPM sur Tunebat ↗</a>
+          <input type="number" id="bpmIn" min="40" max="220" step="0.1" placeholder="BPM" aria-label="Saisir le BPM"><button>OK</button></form>
         <button id="ytAlt" hidden>↻ Autre version du morceau</button>
         <button id="ytAdd" hidden>＋ Ajouter à une playlist</button>
         <div id="ytAddBox"></div>
@@ -310,7 +321,8 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
         <div class="beats" id="beats"><i></i><i></i><i></i><i></i></div>
         <div class="livestat" id="liveStat"></div>
       </div>
-      <div class="bpmchip"><b id="bpm">120</b><small>BPM</small></div>
+      <button id="syncBtn" class="syncbtn" title="Caler les pas sur la musique que tu entends (micro, 8 s)">🎤</button>
+      <button class="bpmchip" id="bpmChip" title="Tape ici en rythme (4 fois ou plus) pour caler les pas"><b id="bpm">120</b><small id="bpmLbl">BPM</small></button>
     </div>
 
     <!-- détection du son : automatique, aucun contrôle visible -->
@@ -405,7 +417,13 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
               <button id="tap" title="Tape sur le 1er temps (touche T)">Tap (T)</button>
             </div>
           </div>
-          <label class="chk" style="margin-top:14px"><input type="checkbox" id="autoLive" checked><span>Calage automatique sur le son (partage de l'onglet)</span></label>
+          <div class="opt" style="margin-top:14px"><h4>Caler les pas sur la musique</h4>
+            <div class="controls">
+              <button id="advSyncMic">🎤 Écouter au micro (8 s)</button>
+              <button id="advSyncTab">🖥 Son de l'onglet (ordinateur)</button>
+            </div>
+            <p class="note" style="margin-top:8px">Le tempo vient de la base Deezer ou de l'analyse d'un extrait. Pour que les pas tombent pile sur les temps : appuie sur 🎤 pendant la musique, ou tape au moins 4 fois en rythme sur le compteur BPM. Ça marche aussi avec une musique qui joue ailleurs (enceinte, télé, autre appli). Avec des écouteurs, utilise plutôt le tap.</p>
+          </div>
           <div class="sliders">
             <label>Calage <input type="range" id="offset" min="-0.5" max="0.5" step="0.01" value="0"><span id="offsetV">0</span></label>
             <label id="volLabel">Volume <input type="range" id="vol" min="0" max="1" step="0.01" value="0.8"></label>
@@ -473,20 +491,21 @@ function detectCore(a, b, sr) {
   for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1));
   const re = new Float32Array(N), im = new Float32Array(N);
   const bins = Math.min(N / 2, Math.floor(6000 / (sr / N)));
-  const prev = new Float32Array(bins), env = new Float32Array(frames);
+  const prev = new Float32Array(bins), env = new Float32Array(frames), envL = new Float32Array(frames);
+  const lowBins = Math.max(2, Math.floor(170 / (sr / N)));          // ≈ 40–170 Hz : grosse caisse / basse
 
   for (let f = 0; f < frames; f++) {
     const o = f * hop;
     for (let i = 0; i < N; i++) { re[i] = 0.5 * (a[o + i] + b[o + i]) * win[i]; im[i] = 0; }
     fft(re, im);
-    let flux = 0;
+    let flux = 0, low = 0;
     for (let k = 1; k < bins; k++) {
       const m = Math.log1p(Math.hypot(re[k], im[k]) * 0.5);
       const d = m - prev[k];
-      if (d > 0) flux += d;
+      if (d > 0) { flux += d; if (k <= lowBins) low += d; }
       prev[k] = m;
     }
-    env[f] = flux;
+    env[f] = flux; envL[f] = low;
   }
   const fps = sr / hop;
 
@@ -502,6 +521,16 @@ function detectCore(a, b, sr) {
   }
   const sd = Math.sqrt(sum2 / frames) || 1;
   for (let i = 0; i < frames; i++) e[i] /= sd;
+  // même traitement pour les basses
+  const eL = new Float32Array(frames), preL = new Float64Array(frames + 1);
+  for (let i = 0; i < frames; i++) preL[i + 1] = preL[i] + envL[i];
+  let sumL = 0;
+  for (let i = 0; i < frames; i++) {
+    const lo = Math.max(0, i - w), hi = Math.min(frames, i + w + 1);
+    eL[i] = Math.max(0, envL[i] - (preL[hi] - preL[lo]) / (hi - lo)); sumL += eL[i] * eL[i];
+  }
+  const sdL = Math.sqrt(sumL / frames) || 1;
+  for (let i = 0; i < frames; i++) eL[i] /= sdL;
 
   const maxLag = Math.floor(fps * 4.2), ac = new Float32Array(maxLag + 2);
   for (let l = 1; l <= maxLag; l++) {
@@ -519,7 +548,7 @@ function detectCore(a, b, sr) {
     if (s > best) { best = s; bestBpm = bpm; }
   }
 
-  const envAt = x => { const i = Math.floor(x); if (i < 0 || i >= frames - 1) return 0; const f = x - i; return e[i] * (1 - f) + e[i + 1] * f; };
+  const envAt = x => { const i = Math.floor(x); if (i < 0 || i >= frames - 1) return 0; const f = x - i; return e[i] * (1 - f) + e[i + 1] * f + 1.6 * (eL[i] * (1 - f) + eL[i + 1] * f); };
   const phaseFor = bpm => {
     const p = 60 * fps / bpm;
     let bs = -1, bo = 0;
@@ -3092,7 +3121,7 @@ function startTraining() {
   if (S.mode === 'preview') { stopSong(); S.song = null; }
   if (LIVE.on) stopLive(true);
   ensureCtx();
-  S.mode = 'idle'; S.offset = 0;
+  S.mode = 'idle'; S.offset = 0; S.extSync = false;
   TRAIN.on = true; TRAIN.lastIdx = null;
   buildTrainSeq();
   setBpm(TRAIN.bpm, false);
@@ -3466,7 +3495,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 function isPlaying() {
-  return S.mode === 'preview' ? S.playing : S.mode === 'yt' ? Y.state === 1 : S.metronome;
+  return S.mode === 'preview' ? S.playing : S.mode === 'yt' ? Y.state === 1 : (S.metronome || !!S.extSync);
 }
 function syncPlayBtn() { const on = isPlaying(); $('#play').textContent = on ? '⏸' : '▶'; $('#play').setAttribute('aria-label', on ? 'Pause' : 'Lecture'); }
 function setNow(html) { $('#now').innerHTML = html; }
@@ -3494,7 +3523,7 @@ async function loadTrack(t, el) {
     if (token !== S.token) return;
     S.song = { buf: r.buf, dur: r.buf.duration, track: t, raw: r.bpm };
     S.t0 = r.t0; S.offset = 0; $('#offset').value = 0; $('#offsetV').textContent = '0';
-    setBpm(foldBpm(r.bpm), false);
+    setBpm(foldBpm(r.bpm), false); S.bpmSrc = 'analyse'; S.extSync = false;
     S.metronome = false;
     startSong(0);
     const folded = Math.abs(S.bpm - r.bpm) > 1;
@@ -3567,6 +3596,7 @@ async function ensurePlayer() {
 }
 function enterYT() {
   if (TRAIN.on) stopTraining();
+  S.bpmSrc = null; S.extSync = false; setTempoInfo('');
   stopSong(); S.song = null; S.metronome = false; S.mode = 'yt';
   if (!LIVE.on) { S.t0 = 0; S.offset = 0; $('#offset').value = 0; $('#offsetV').textContent = '0'; }
   Y.phased = LIVE.on && LIVE.locked; Y.videoId = null; Y.looked = null; Y.state = -1; Y.title = ''; Y.note = ''; Y.cands = [];
@@ -3576,7 +3606,6 @@ function enterYT() {
 }
 async function playYT({ ids, index = 0, list }) {
   closeDrawer();
-  if ($('#autoLive').checked && !LIVE.on && !LIVE.denied) autoLive();      // une seule autorisation du navigateur, puis tout est automatique
   enterYT();
   setNow('⏳ Chargement du lecteur YouTube…');
   try {
@@ -3634,46 +3663,190 @@ function tempoQueries() {
   const seen = new Set();
   return qs.map(q => q.replace(/\s+/g, ' ').trim()).filter(q => q.length > 2 && !seen.has(q.toLowerCase()) && seen.add(q.toLowerCase()));
 }
+// base de tempos Deezer (JSONP : fonctionne dans tous les navigateurs, sans clé)
+function deezer(path, params = {}) {
+  return new Promise((res, rej) => {
+    const cb = 'dz' + Date.now().toString(36) + Math.floor(Math.random() * 1e6);
+    const u = new URL('https://api.deezer.com/' + path);
+    Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
+    u.searchParams.set('output', 'jsonp'); u.searchParams.set('callback', cb);
+    const sc = document.createElement('script');
+    const done = () => { clearTimeout(to); delete window[cb]; sc.remove(); };
+    const to = setTimeout(() => { done(); rej(new Error('Deezer ne répond pas')); }, 7000);
+    window[cb] = d => { done(); d && d.error ? rej(new Error(d.error.message || 'Deezer')) : res(d); };
+    sc.onerror = () => { done(); rej(new Error('Deezer injoignable')); };
+    sc.src = u.toString(); document.head.appendChild(sc);
+  });
+}
+const norm = t => (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+// score de ressemblance entre le titre YouTube et un morceau trouvé (titre + artiste)
+function matchScore(ytTitle, ytAuthor, title, artist) {
+  const hay = ' ' + norm(ytTitle + ' ' + ytAuthor) + ' ';
+  const tw = norm(title.replace(/\(.*?\)|\[.*?\]/g, ' ')).split(' ').filter(w => w.length > 1);
+  const aw = norm(artist).split(' ').filter(w => w.length > 1);
+  const frac = ws => ws.length ? ws.filter(w => hay.includes(' ' + w + ' ')).length / ws.length : 0;
+  return frac(tw) * 0.7 + frac(aw) * 0.3;
+}
+function setTempoInfo(txt) {
+  const el = $('#ytTempo'); if (el) el.innerHTML = txt;
+  const a = $('#tbLink'); if (a && Y.title) a.href = 'https://tunebat.com/Search?q=' + encodeURIComponent(cleanTitle(Y.title, Y.author));
+}
 async function lookupTempo() {
   const token = ++Y.token;
   Y.note = ''; renderYTInfo();
   setNow(`🔎 Recherche du tempo de <b>${esc(Y.title)}</b>…`);
-  Y.cands = []; Y.ci = 0;
+  setTempoInfo('Recherche du tempo…');
+  let best = null;
+  // 1) base Deezer : instantané, sans analyser de son
+  try {
+    for (const q of tempoQueries()) {
+      const d = await deezer('search', { q, limit: 8 });
+      if (token !== Y.token) return;
+      (d.data || []).forEach(t => { const sc = matchScore(Y.title, Y.author, t.title, t.artist && t.artist.name); if (!best || sc > best.sc) best = { sc, t }; });
+      if (best && best.sc >= 0.75) break;
+    }
+  } catch (_) {}
+  if (token !== Y.token) return;
+  const cands = [];
+  if (best && best.sc >= 0.5) {
+    try {
+      const full = await deezer('track/' + best.t.id);
+      if (token !== Y.token) return;
+      if (full.bpm > 40) { applyTempo(foldBpm(full.bpm), 'Deezer', token); return; }
+      if (full.preview) cands.push(full.preview);
+    } catch (_) {}
+  }
+  // 2) sinon : analyse d'un extrait de 30 s (Deezer en MP3, ou iTunes)
   try {
     for (const q of tempoQueries()) {
       const d = await (await fetch('https://itunes.apple.com/search?media=music&entity=song&limit=6&term=' + encodeURIComponent(q))).json();
       if (token !== Y.token) return;
-      const found = (d.results || []).filter(r => r.previewUrl);
-      if (found.length) { Y.cands = found; break; }
+      const found = (d.results || []).filter(r => r.previewUrl && matchScore(Y.title, Y.author, r.trackName, r.artistName) >= 0.4);
+      if (found.length) { cands.push(...found.slice(0, 2).map(r => r.previewUrl)); break; }
     }
-  } catch (err) {
-    if (token !== Y.token) return;
-  }
-  if (token !== Y.token) return;
-  await tryCandidate(token);
-}
-async function tryCandidate(token = Y.token) {
-  // on essaie les morceaux trouvés dans l'ordre jusqu'à obtenir un tempo exploitable
-  for (let n = 0; n < Math.max(1, Y.cands.length); n++) {
-    const t = Y.cands[(Y.ci + n) % Math.max(1, Y.cands.length)];
-    if (!t) break;
+  } catch (_) {}
+  for (const url of cands) {
     try {
-      const r = await analyzeUrl(t.previewUrl);
+      const r = await analyzeUrl(url);
       if (token !== Y.token) return;
-      Y.ci = (Y.ci + n) % Y.cands.length;
-      if (!LIVE.locked) setBpm(foldBpm(r.bpm), false);     // si le son de l'onglet est déjà verrouillé, c'est lui qui fait foi
-      Y.note = `Tempo : ${Math.round(S.bpm)} BPM`;
-      $('#ytAlt').hidden = Y.cands.length < 2;
-      setNow(`📺 <b>${esc(Y.title)}</b> <small>· ${Math.round(S.bpm)} BPM</small>`);
-      renderYTInfo();
-      return;
-    } catch (err) {
-      if (token !== Y.token) return;
-    }
+      applyTempo(foldBpm(r.bpm), 'analyse de l\'extrait', token); return;
+    } catch (_) { if (token !== Y.token) return; }
   }
-  Y.note = '';
+  Y.note = ''; renderYTInfo();
+  setTempoInfo('Tempo inconnu : appuie sur 🎤 ou tape le rythme sur le compteur BPM');
+  setNow(`📺 <b>${esc(Y.title)}</b> <small>· tempo inconnu : 🎤 pour l'écouter, ou tape le rythme sur le compteur</small>`);
+}
+function applyTempo(v, src, token) {
+  if (token !== undefined && token !== Y.token) return;
+  setBpm(v, false); S.bpmSrc = src;
+  Y.note = `Tempo : ${Math.round(S.bpm)} BPM`;
+  setTempoInfo(`Tempo ${Math.round(S.bpm)} BPM <small>(${esc(src)})</small> · pour caler les pas pile sur les temps :`);
+  setNow(`📺 <b>${esc(Y.title)}</b> <small>· ${Math.round(S.bpm)} BPM</small>`);
   renderYTInfo();
-  setNow(`📺 <b>${esc(Y.title)}</b> <small>· tempo non trouvé : réglage dans ⚙ Réglages</small>`);
+}
+async function tryCandidate() { lookupTempo(); }
+
+// enregistre DUR secondes du flux : AudioWorklet (fil audio, aucune perte même si la page est chargée), sinon ScriptProcessor
+async function captureAudio(ctx, stream, DUR, onSec) {
+  const sr = ctx.sampleRate, total = Math.round(sr * DUR), buf = new Float32Array(total);
+  let n = 0, tStart = null, peak = 0, lastSec = -1;
+  const src = ctx.createMediaStreamSource(stream), mute = ctx.createGain(); mute.gain.value = 0;
+  const push = (t, d) => {
+    if (tStart === null) tStart = t;
+    const m = Math.min(d.length, total - n);
+    for (let i = 0; i < m; i++) { buf[n + i] = d[i]; const a = Math.abs(d[i]); if (a > peak) peak = a; }
+    n += m;
+    const sec = Math.floor(n / sr); if (sec !== lastSec) { lastSec = sec; onSec && onSec(sec); }
+    return n >= total;
+  };
+  let node = null;
+  if (ctx.audioWorklet && window.AudioWorkletNode) {
+    try {
+      if (!captureAudio.ready) {
+        const code = "class C extends AudioWorkletProcessor{constructor(){super();this.b=new Float32Array(2048);this.n=0;this.t=0}" +
+          "process(inp){const c=inp[0]&&inp[0][0];if(c){if(this.n===0)this.t=currentTime;this.b.set(c,this.n);this.n+=c.length;" +
+          "if(this.n>=2048){this.port.postMessage({t:this.t,d:this.b.slice(0)});this.n=0}}return true}}registerProcessor('sc-cap',C)";
+        await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([code], { type: 'application/javascript' })));
+        captureAudio.ready = true;
+      }
+      node = new AudioWorkletNode(ctx, 'sc-cap', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
+    } catch (_) { node = null; }
+  }
+  await new Promise(done => {
+    const safety = setTimeout(done, (DUR + 5) * 1000);
+    const fin = () => { clearTimeout(safety); done(); };
+    if (node) {
+      node.port.onmessage = ev => { if (push(ev.data.t, ev.data.d)) fin(); };
+      src.connect(node); node.connect(mute);
+    } else {
+      node = ctx.createScriptProcessor(2048, 1, 1);
+      node.onaudioprocess = ev => { const d = ev.inputBuffer.getChannelData(0); if (push(ctx.currentTime - 2 * d.length / sr, d)) fin(); };
+      src.connect(node); node.connect(mute);
+    }
+    mute.connect(ctx.destination);
+  });
+  try { if (node.port) node.port.onmessage = null; else node.onaudioprocess = null; src.disconnect(); node.disconnect(); mute.disconnect(); } catch (_) {}
+  return { buf: buf.subarray(0, n), tStart, peak, n };
+}
+
+/* ── calage ponctuel sur le son : on écoute 8 s (micro, ou son de l'onglet sur ordinateur), puis on coupe ── */
+const SYNC = { busy: false };
+async function syncToSound(kind = 'mic') {
+  if (SYNC.busy) return;
+  const btns = ['#syncBtn', '#ytSync', '#advSyncMic', '#advSyncTab'].map(q => $(q)).filter(Boolean);
+  SYNC.busy = true; btns.forEach(b => b.classList.add('busy'));
+  let stream = null;
+  try {
+    const ctx = ensureCtx(); if (ctx.state === 'suspended') await ctx.resume();
+    try {
+      if (kind === 'tab') {
+        stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true, preferCurrentTab: true, systemAudio: 'include' });
+        stream.getVideoTracks().forEach(t => t.stop());
+        if (!stream.getAudioTracks().length) throw new Error('aucun son partagé');
+      } else {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      }
+    } catch (e) {
+      setNow(kind === 'tab' ? '🖥 Partage du son de l\'onglet impossible ici — utilise 🎤 ou tape le rythme sur le compteur BPM.'
+                            : '🎤 Micro refusé ou indisponible — tape plutôt le rythme (4 fois ou plus) sur le compteur BPM.');
+      return;
+    }
+    const tr = stream.getAudioTracks()[0], st = tr.getSettings ? tr.getSettings() : {};
+    const inLat = kind === 'tab' ? 0.02 : Math.min(0.25, st.latency || 0.04);
+    const sr = ctx.sampleRate, DUR = 8;
+    const cap = await captureAudio(ctx, stream, DUR, sec => setNow(`🎤 J'écoute la musique… ${DUR - sec} s`));
+    const { buf, tStart, peak, n } = cap;
+    if (n < sr * 4 || peak < 0.004) { setNow('🎤 Je n\'entends pas assez la musique : monte le son (ou tape le rythme sur le compteur BPM).'); return; }
+    const res = await detectAsync(buf, buf, sr);
+    // tempo : la base (Deezer, extrait, tap) est plus précise si l'écoute la confirme ; sinon on prend l'écoute
+    const known = !!S.bpmSrc;
+    let bpm = known ? alignOctave(res.bpm, S.bpm) : foldBpm(res.bpm);
+    if (known && Math.abs(bpm - S.bpm) / S.bpm < 0.05) bpm = S.bpm;
+    const P = 60 / bpm, Pd = 60 / res.bpm;
+    // dernier temps entendu dans l'enregistrement (horloge audio), latence d'entrée retirée
+    let tb = tStart + res.t0; tb += Math.floor((tStart + n / sr - 0.05 - tb) / Pd) * Pd; tb -= inLat;
+    const nowCtx = ctx.currentTime, nowPerf = performance.now(), ago = nowCtx - tb;
+    setBpm(bpm, false); if (!known || bpm !== S.bpm) S.bpmSrc = 'écoute';
+    S.offset = 0; $('#offset').value = 0; $('#offsetV').textContent = '0';
+    if (S.mode === 'yt') {
+      const T = ytTime(nowPerf);
+      if (T !== null) { S.t0 = T - ago; Y.phased = true; }
+      setTempoInfo(`Tempo ${Math.round(S.bpm)} BPM <small>(${esc(S.bpmSrc)})</small> · ✅ pas calés sur le son`);
+    } else if (S.mode === 'preview' && S.song) {
+      // l'extrait est déjà calé par analyse : rien à faire
+    } else {
+      // musique extérieure (enceinte, télé, autre appli) : elle danse dessus
+      S.extSync = true; S.metronome = false;
+      S.idleB = Math.round(S.idleB - ago / P) + ago / P; S.bs = undefined;
+    }
+    setNow(`✅ Pas calés sur la musique · ${Math.round(S.bpm)} BPM <small>· 🎤 pour recaler</small>`);
+    syncPlayBtn();
+  } catch (err) {
+    setNow('⚠️ Calage impossible (' + esc(err.message || err) + ') — tape le rythme sur le compteur BPM.');
+  } finally {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    SYNC.busy = false; btns.forEach(b => b.classList.remove('busy'));
+  }
 }
 
 function parseYT(s) {
@@ -4025,8 +4198,18 @@ $('#gLogin').onclick = googleLogin;
 $('#ytAdd').onclick = () => { const box = $('#ytAddBox'); box.innerHTML ? (box.innerHTML = '') : playlistPicker(box, Y.videoId, Y.title); };
 $('#ytAlt').onclick = () => { Y.ci = (Y.ci + 1) % Y.cands.length; tryCandidate(); };
 
-$('#autoLive').checked = store.get('autolive', true);
-$('#autoLive').onchange = e => { store.set('autolive', e.target.checked); LIVE.denied = false; if (!e.target.checked && LIVE.on) stopLive(); };
+$('#syncBtn').onclick = () => syncToSound('mic');
+// BPM saisi à la main (par ex. lu sur Tunebat) : il prend le dessus sur la détection
+$('#bpmForm').onsubmit = e => {
+  e.preventDefault();
+  const v = parseFloat(String($('#bpmIn').value).replace(',', '.'));
+  if (!(v >= 40 && v <= 220)) return;
+  applyTempo(v, 'saisi'); $('#bpmIn').value = '';
+};
+$('#ytSync').onclick = () => syncToSound('mic');
+$('#advSyncMic').onclick = () => syncToSound('mic');
+$('#advSyncTab').onclick = () => syncToSound('tab');
+$('#advSyncTab').hidden = !(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) || /Android|iPhone|iPad/i.test(navigator.userAgent);
 $('#liveTab').onclick = () => startLive('tab');
 $('#liveMic').onclick = () => startLive('mic');
 $('#liveStop').onclick = () => stopLive();
@@ -4047,6 +4230,9 @@ $('#play').onclick = () => {
     if (S.playing) { S.pausedPos = songPos().pos; stopSong(); } else startSong(S.pausedPos);
   } else if (S.mode === 'yt') {
     if (Y.player && Y.ready) Y.state === 1 ? Y.player.pauseVideo() : Y.player.playVideo();
+  } else if (S.extSync) {
+    S.extSync = false;
+    setNow('Aucune musique : elle t\'attend. Choisis un morceau pour commencer 🎵');
   } else {
     S.metronome = !S.metronome;
     setNow(S.metronome ? `🥁 Métronome à ${Math.round(S.bpm)} BPM — cherche un morceau pour de la vraie musique.` :
@@ -4061,21 +4247,32 @@ $('#double').onclick = () => setBpm(S.bpm * 2, false);
 
 let taps = [];
 function doTap() {
+  if (TRAIN.on) return;                          // en entraînement, le tempo est choisi dans le panneau
   ensureCtx();
   const now = performance.now();
-  if (taps.length && now - taps[taps.length - 1] > 2000) taps = [];
-  taps.push(now); if (taps.length > 8) taps.shift();
-  if (taps.length >= 3) setBpm(60000 / ((taps[taps.length - 1] - taps[0]) / (taps.length - 1)), false);
-  if (LIVE.on) { LIVE.anchor = S.ctx.currentTime - (LIVE.kind === 'tab' ? latency() : 0); return; }
-  const pos = curPos();
-  if (pos !== null && (isPlaying() || S.mode === 'preview')) {
-    S.offset = 0; $('#offset').value = 0; $('#offsetV').textContent = '0';
-    S.t0 = pos;
-    if (S.mode === 'yt') { Y.phased = true; renderYTInfo(); }
-  } else if (S.mode === 'idle') {
-    S.idleB = Math.round(S.idleB - S.offset);
+  if (taps.length && now - taps[taps.length - 1] > 2200) taps = [];
+  taps.push(now); if (taps.length > 12) taps.shift();
+  const chip = $('#bpmChip'); chip.classList.add('tap'); clearTimeout(doTap.t); doTap.t = setTimeout(() => chip.classList.remove('tap'), 140);
+  if (taps.length < 4) { $('#bpmLbl').textContent = 'TAP ' + taps.length + '/4'; return; }
+  const iv = []; for (let i = 1; i < taps.length; i++) iv.push(taps[i] - taps[i - 1]);
+  iv.sort((a, b) => a - b);
+  let bpm = 60000 / iv[Math.floor(iv.length / 2)];
+  if (S.bpmSrc && S.bpmSrc !== 'tap') { const al = alignOctave(bpm, S.bpm); if (Math.abs(al - S.bpm) / S.bpm < 0.05) bpm = S.bpm; }   // la base reste plus précise
+  if (bpm !== S.bpm) { setBpm(bpm, false); S.bpmSrc = 'tap'; }
+  $('#bpmLbl').textContent = 'CALÉ ✓'; clearTimeout(doTap.l); doTap.l = setTimeout(() => { $('#bpmLbl').textContent = 'BPM'; }, 1500);
+  // phase : le dernier tap tombe sur un temps
+  const P = 60 / S.bpm, touch = 0.03;
+  S.offset = 0; $('#offset').value = 0; $('#offsetV').textContent = '0';
+  if (S.mode === 'yt' && Y.player) { const T = ytTime(now); if (T !== null) { S.t0 = T - touch; Y.phased = true; setTempoInfo(`Tempo ${Math.round(S.bpm)} BPM <small>(${esc(S.bpmSrc || 'tap')})</small> · ✅ pas calés au tap`); } }
+  else if (S.mode === 'preview' && S.song) { const pos = curPos(); if (pos !== null) S.t0 = pos - touch; }
+  else {                                         // musique extérieure : elle danse au rythme tapé
+    S.extSync = true; S.metronome = false;
+    S.idleB = Math.round(S.idleB - touch / P) + touch / P; S.bs = undefined;
+    setNow(`✅ Calée sur ton rythme · ${Math.round(S.bpm)} BPM <small>· retape pour recaler</small>`);
+    syncPlayBtn();
   }
 }
+$('#bpmChip').addEventListener('pointerdown', e => { e.preventDefault(); doTap(); });
 $('#tap').onclick = doTap;
 $('#offset').oninput = e => { S.offset = +e.target.value; $('#offsetV').textContent = (S.offset > 0 ? '+' : '') + S.offset.toFixed(2); };
 $('#vol').oninput = e => { if (S.gain) S.gain.gain.value = +e.target.value; };
@@ -4092,7 +4289,7 @@ buildSeq(); renderZone(); renderVariety(); renderTrain(); renderChoreo(); render
   setInterval(() => { if (GG.token && PROG.updated > (CLOUD.lastProg || 0)) { CLOUD.lastProg = PROG.updated; store.set('progress', PROG); cloudSaveSoon(); } }, 60000);
   window.addEventListener('pagehide', () => store.set('progress', PROG)); }
 requestAnimationFrame(frame);
-window.__step = { S, Y, LIVE, seqAt, ease, TRAIN, startTraining, stopTraining, poseCue, GG, showMyPlaylists, ytSearch, PROG, cloudLoad, cloudSave, CLOUD, SEQLEN: () => SEQ.length, startLive, stopLive, detectTempo, foldBpm, cleanTitle, parseYT, ytSearch, selected: () => selected, LOOK, hasKey: () => !!CFG.key };
+window.__step = { S, Y, LIVE, seqAt, ease, TRAIN, startTraining, stopTraining, poseCue, GG, showMyPlaylists, ytSearch, PROG, cloudLoad, cloudSave, CLOUD, lookupTempo, syncToSound, SEQLEN: () => SEQ.length, startLive, stopLive, detectTempo, foldBpm, cleanTitle, parseYT, ytSearch, selected: () => selected, LOOK, hasKey: () => !!CFG.key };
 })();
 </script>
 </body>
