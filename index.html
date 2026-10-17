@@ -133,6 +133,8 @@ button.primary{background:linear-gradient(135deg,var(--pink),var(--violet));bord
 .drawer input:focus{border-color:var(--cyan)}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
 .row span{color:var(--mute);font-size:12.5px}
+.gacct{margin-top:0}
+.gacct #gLogout{background:transparent;border-color:rgba(255,255,255,.18);color:var(--mute)}
 .gear{margin-left:auto;padding:6px 10px;color:var(--mute);font-size:13px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 6px}
 .chips button{font-size:12.5px;padding:5px 11px;border-radius:99px;color:var(--mute)}
@@ -344,6 +346,11 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
 
         <!-- ───────── Musique ───────── -->
         <div id="tab-music">
+          <div class="row gacct">
+            <button id="gLogin">Se connecter avec Google</button>
+            <button id="gLogout" hidden>Se déconnecter</button>
+            <span id="gState"></span>
+          </div>
           <div class="seg">
             <button data-src="yt" class="on">YouTube</button>
             <button data-src="it">iTunes (extrait 30 s)</button>
@@ -354,11 +361,7 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
               <input type="search" id="ytq" placeholder="Rechercher, ou coller un lien YouTube…" autocomplete="off" aria-label="Rechercher sur YouTube">
               <button class="primary">OK</button>
             </form>
-            <div class="row">
-              <button id="gLogin">Se connecter avec Google</button>
-              <span id="gState"></span>
-            </div>
-            <div class="list" id="ytResults"><div class="empty">Cherche un titre, colle un lien de vidéo ou de playlist, ou connecte-toi pour retrouver tes playlists.</div></div>
+            <div class="list" id="ytResults"><div class="empty" id="ytStart">Cherche un titre, colle un lien de vidéo ou de playlist, ou connecte-toi pour retrouver tes playlists.</div></div>
           </div>
 
           <div id="src-it" hidden>
@@ -3039,11 +3042,12 @@ function renderProgress() {
     `<div class="psync" id="pSync">${cloudStatus()}</div>`;
 }
 function cloudStatus() {
-  if (typeof GG === 'undefined' || !GG.token) return '💾 Enregistré sur cet appareil. Connecte-toi avec Google (onglet Musique) pour retrouver ton personnage et ta progression partout.';
+  if (typeof GG === 'undefined' || !GG.remember) return '💾 Enregistré sur cet appareil. Connecte-toi avec Google (onglet Musique) pour retrouver ton personnage et ta progression partout.';
+  if (!gValid() && CLOUD.dirty) return '☁ Compte Google' + (GG.name ? ' (' + esc(GG.name) + ')' : '') + ' : la sauvegarde reprend dès ton prochain geste dans l\'appli.';
   return CLOUD.state === 'saving' ? '☁ Sauvegarde sur ton compte Google…' : CLOUD.state === 'error' ? '⚠️ Sauvegarde Google impossible : ' + esc(CLOUD.err || '') :
          '☁ Personnage et progression sauvegardés sur ton compte Google' + (GG.name ? ' (' + esc(GG.name) + ')' : '') + '.';
 }
-const TRAIN = { on: false, move: store.get('trMove', 'basic'), bpm: store.get('trBpm', 80), step: false, marks: true, until: 0, lastIdx: null };
+const TRAIN = { on: false, move: store.get('trMove', 'basic'), bpm: store.get('trBpm', 80), step: !!store.get('trStep', false), marks: store.get('trMarks', true) !== false, until: 0, lastIdx: null };
 if (!MOVES[TRAIN.move]) TRAIN.move = 'basic';
 const TR_SPEEDS = [[60, 'Très lent'], [80, 'Lent'], [100, 'Moyen'], [125, 'Vitesse réelle']];
 const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
@@ -3606,7 +3610,7 @@ function enterYT() {
 }
 async function playYT({ ids, index = 0, list }) {
   closeDrawer();
-  enterYT();
+  enterYT(); Y.list = list || null;
   setNow('⏳ Chargement du lecteur YouTube…');
   try {
     const p = await ensurePlayer();
@@ -3637,6 +3641,7 @@ function onYTState(e) {
   }
   if (d && d.title && Y.looked !== Y.videoId) {
     Y.looked = Y.videoId; Y.title = d.title; Y.author = d.author || '';
+    store.set('lastYT', { id: Y.videoId, title: Y.title, author: Y.author, list: Y.list || null, t: Date.now() });
     lookupTempo();                          // tempo de base, toujours : le partage d'onglet l'affine ensuite
   }
   syncPlayBtn();
@@ -3696,6 +3701,8 @@ async function lookupTempo() {
   Y.note = ''; renderYTInfo();
   setNow(`🔎 Recherche du tempo de <b>${esc(Y.title)}</b>…`);
   setTempoInfo('Recherche du tempo…');
+  const mem = Y.videoId && TEMPOS[Y.videoId];
+  if (mem && mem.b > 40) { applyTempo(mem.b, 'retenu (' + mem.s + ')', token); return; }
   let best = null;
   // 1) base Deezer : instantané, sans analyser de son
   try {
@@ -3736,9 +3743,17 @@ async function lookupTempo() {
   setTempoInfo('Tempo inconnu : appuie sur 🎤 ou tape le rythme sur le compteur BPM');
   setNow(`📺 <b>${esc(Y.title)}</b> <small>· tempo inconnu : 🎤 pour l'écouter, ou tape le rythme sur le compteur</small>`);
 }
+// tempos corrigés à la main (tap, saisie, écoute) : retrouvés au prochain passage du morceau, sur tous les appareils
+const TEMPOS = store.get('tempos', {});
+function rememberTempo() {
+  if (S.mode !== 'yt' || !Y.videoId || !['tap', 'saisi', 'écoute'].includes(S.bpmSrc)) return;
+  TEMPOS[Y.videoId] = { b: Math.round(S.bpm * 10) / 10, s: S.bpmSrc, t: Date.now() };
+  const keys = Object.keys(TEMPOS); if (keys.length > 300) keys.sort((a, b) => TEMPOS[a].t - TEMPOS[b].t).slice(0, keys.length - 300).forEach(k => delete TEMPOS[k]);
+  store.set('tempos', TEMPOS);
+}
 function applyTempo(v, src, token) {
   if (token !== undefined && token !== Y.token) return;
-  setBpm(v, false); S.bpmSrc = src;
+  setBpm(v, false); S.bpmSrc = src; rememberTempo();
   Y.note = `Tempo : ${Math.round(S.bpm)} BPM`;
   setTempoInfo(`Tempo ${Math.round(S.bpm)} BPM <small>(${esc(src)})</small> · pour caler les pas pile sur les temps :`);
   setNow(`📺 <b>${esc(Y.title)}</b> <small>· ${Math.round(S.bpm)} BPM</small>`);
@@ -3826,7 +3841,7 @@ async function syncToSound(kind = 'mic') {
     // dernier temps entendu dans l'enregistrement (horloge audio), latence d'entrée retirée
     let tb = tStart + res.t0; tb += Math.floor((tStart + n / sr - 0.05 - tb) / Pd) * Pd; tb -= inLat;
     const nowCtx = ctx.currentTime, nowPerf = performance.now(), ago = nowCtx - tb;
-    setBpm(bpm, false); if (!known || bpm !== S.bpm) S.bpmSrc = 'écoute';
+    setBpm(bpm, false); if (!known || bpm !== S.bpm) { S.bpmSrc = 'écoute'; rememberTempo(); }
     S.offset = 0; $('#offset').value = 0; $('#offsetV').textContent = '0';
     if (S.mode === 'yt') {
       const T = ytTime(nowPerf);
@@ -3900,21 +3915,24 @@ async function ytSearch(q) {
   }
 }
 
-const GG = { token: null, client: null, name: '', lists: null, pending: null };
+const GG = { token: null, exp: 0, client: null, name: '', email: '', remember: false, lists: null, pending: null, renewing: null, lastTry: 0 };
 // YouTube (lire ET gérer ses playlists) + un dossier privé de Google Drive réservé à l'appli (personnage, progression)
 const G_SCOPE = 'https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/drive.appdata';
 const CLOUD = { fileId: null, state: '', err: '', timer: null, applying: false };
 const CLOUD_FILE = 'stepcoach.json';
 async function gFetch(url, opt = {}, retry = true) {
+  if (!gValid() && GG.renewing) await GG.renewing.catch(() => {});
+  if (!gValid() && GG.client && retry) await gToken('');
   const r = await fetch(url, { ...opt, headers: { Authorization: 'Bearer ' + GG.token, ...(opt.headers || {}) } });
-  if (r.status === 401 && retry && GG.client) { await gToken(''); return gFetch(url, opt, false); }
+  if (r.status === 401 && retry && GG.client) { GG.token = null; await gToken(''); return gFetch(url, opt, false); }
   if (!r.ok) { let m = 'HTTP ' + r.status; try { const j = await r.json(); m = (j.error && j.error.message) || m; } catch (_) {} throw new Error(m); }
   return r;
 }
 function userData() {
   store.set('progress', PROG);
-  return { v: 1, updated: Math.max(PROG.updated || 0, +store.get('localUpdated', 0)), look: LOOK, board: BOARD, variety, zone,
-           moves: [...selected], train: { move: TRAIN.move, bpm: TRAIN.bpm }, progress: PROG };
+  return { v: 2, updated: Math.max(PROG.updated || 0, +store.get('localUpdated', 0)), look: LOOK, board: BOARD, variety, zone,
+           moves: [...selected], train: { move: TRAIN.move, bpm: TRAIN.bpm, step: !!store.get('trStep', false), marks: TRAIN.marks },
+           vol: +$('#vol').value, tempos: TEMPOS, lastYT: store.get('lastYT', null), progress: PROG };
 }
 function mergeProgress(a, b) {
   const out = { danceSec: Math.max(a.danceSec || 0, b.danceSec || 0), days: [...new Set([...(a.days || []), ...(b.days || [])])].sort(), moves: {}, updated: Math.max(a.updated || 0, b.updated || 0) };
@@ -3932,7 +3950,15 @@ function applyUserData(d) {
     if (typeof d.variety === 'number') { variety = clamp(d.variety, 0, 3); store.set('variety', variety); }
     if (d.zone && LANES_OF[d.zone]) { zone = d.zone; store.set('zone', zone); }
     if (Array.isArray(d.moves) && d.moves.length) { selected = new Set(d.moves.filter(k => MOVES[k])); store.set('moves2', [...selected]); }
-    if (d.train) { if (MOVES[d.train.move]) TRAIN.move = d.train.move; if (d.train.bpm) TRAIN.bpm = d.train.bpm; }
+    if (d.train) {
+      if (MOVES[d.train.move]) { TRAIN.move = d.train.move; store.set('trMove', TRAIN.move); }
+      if (d.train.bpm) { TRAIN.bpm = d.train.bpm; store.set('trBpm', TRAIN.bpm); }
+      if (typeof d.train.step === 'boolean') { store.set('trStep', d.train.step); if (!TRAIN.on) TRAIN.step = d.train.step; }
+      if (typeof d.train.marks === 'boolean') { TRAIN.marks = d.train.marks; store.set('trMarks', TRAIN.marks); }
+    }
+    if (typeof d.vol === 'number') { $('#vol').value = clamp(d.vol, 0, 1); store.set('vol', +$('#vol').value); if (S.gain) S.gain.gain.value = +$('#vol').value; }
+    if (d.tempos && typeof d.tempos === 'object') { Object.keys(d.tempos).forEach(k => { const a = d.tempos[k], b = TEMPOS[k]; if (a && a.b && (!b || (a.t || 0) > (b.t || 0))) TEMPOS[k] = a; }); store.set('tempos', TEMPOS); }
+    if (d.lastYT && d.lastYT.id) { store.set('lastYT', d.lastYT); renderResume(); }
     if (!TRAIN.on) buildSeq();
     renderLook(); renderBoard(); renderVariety(); renderZone(); renderChoreo(); renderTrain(); renderProgress();
   } finally { CLOUD.applying = false; }
@@ -3948,15 +3974,19 @@ async function cloudLoad() {
       CLOUD.fileId = f.id;
       const remote = await (await gFetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`)).json();
       const local = userData();
-      const merged = mergeProgress(local.progress, remote.progress || {});
-      if ((remote.updated || 0) > (local.updated || 0)) applyUserData(remote);
-      Object.assign(PROG, merged); store.set('progress', PROG);
+      // après une déconnexion, c'est le compte qui fait foi : on retrouve tout comme on l'avait laissé
+      const acct = !!store.get('acctWins', false);
+      const merged = mergeProgress(acct ? {} : local.progress, remote.progress || {});
+      if (acct || (remote.updated || 0) > (local.updated || 0)) applyUserData(remote);
+      Object.assign(PROG, merged); store.set('progress', PROG); renderProgress();
     }
+    store.set('acctWins', false);
     await cloudSave();
   } catch (err) { CLOUD.state = 'error'; CLOUD.err = err.message; renderProgress(); }
 }
 async function cloudSave() {
-  if (!GG.token) return;
+  if (!gValid()) { CLOUD.dirty = true; return; }
+  CLOUD.dirty = false;
   CLOUD.state = 'saving'; renderProgress();
   try {
     const body = JSON.stringify(userData());
@@ -3975,40 +4005,123 @@ async function cloudSave() {
 }
 function cloudSaveSoon() {
   store.set('localUpdated', Date.now());
-  if (CLOUD.applying || !GG.token) return;
+  if (CLOUD.applying || !GG.remember) return;
   clearTimeout(CLOUD.timer); CLOUD.timer = setTimeout(cloudSave, 3000);
 }
+// jeton encore utilisable (Google les donne pour 1 h)
+const gValid = () => !!GG.token && GG.exp > Date.now() + 30e3;
+const saveAuth = () => store.set('gAuth', { token: GG.token, exp: GG.exp, name: GG.name, email: GG.email });
 function gToken(prompt) {
-  return new Promise((res, rej) => { GG.pending = { res, rej }; GG.client.requestAccessToken(prompt === undefined ? {} : { prompt }); });
+  if (GG.pending) return GG.renewing || Promise.reject(new Error('connexion déjà en cours'));
+  const pr = new Promise((res, rej) => {
+    GG.pending = { res, rej };
+    const o = prompt === undefined ? {} : { prompt };
+    if (GG.email && prompt !== undefined) o.login_hint = GG.email;     // même compte, sans redemander lequel
+    GG.client.requestAccessToken(o);
+  });
+  GG.renewing = pr; pr.catch(() => {}).then(() => { if (GG.renewing === pr) GG.renewing = null; });
+  return pr;
+}
+async function initGis() {
+  if (GG.client) return;
+  if (!(window.google && google.accounts && google.accounts.oauth2)) await loadScript('https://accounts.google.com/gsi/client');
+  if (!GG.client) GG.client = google.accounts.oauth2.initTokenClient({
+    client_id: CFG.client, scope: G_SCOPE,
+    callback: r => {
+      const p = GG.pending; GG.pending = null;
+      if (r.error || !r.access_token) { p && p.rej(new Error(r.error || 'refus')); return; }
+      GG.token = r.access_token; GG.exp = Date.now() + (+r.expires_in || 3600) * 1000; GG.remember = true; saveAuth();
+      p && p.res(r.access_token);
+    },
+    error_callback: e => { const p = GG.pending; GG.pending = null; p && p.rej(new Error(e.type || 'fenêtre fermée')); },
+  });
+}
+function renderGoogle(note) {
+  const st = $('#gState'), btn = $('#gLogin'), out = $('#gLogout');
+  out.hidden = !GG.remember;
+  if (!GG.remember) { btn.textContent = 'Se connecter avec Google'; st.textContent = note || ''; }
+  else if (note) { btn.textContent = gValid() ? 'Mes playlists' : 'Reprendre la session'; st.textContent = note; }
+  else { btn.textContent = 'Mes playlists'; st.textContent = 'Connecté' + (GG.name ? ' : ' + GG.name : '') + ' ✓'; }
+  renderProgress();
+}
+// nom (chaîne YouTube) et adresse du compte : affichage et reconnexion silencieuse sur le bon compte
+async function loadIdentity() {
+  try { const me = await gApi('GET', 'channels', { part: 'snippet', mine: 'true' }); GG.name = (me.items && me.items[0] && me.items[0].snippet.title) || GG.name; } catch (_) {}
+  try { const a = await (await gFetch('https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress)')).json();
+        if (a.user) { GG.email = a.user.emailAddress || GG.email; GG.name = GG.name || a.user.displayName || ''; } } catch (_) {}
+  saveAuth();
+}
+async function afterLogin(identity) {
+  if (identity || !GG.name || !GG.email) await loadIdentity();
+  renderGoogle(); syncYtAdd();
+  cloudLoad();
 }
 async function googleLogin() {
-  if (GG.token) { showMyPlaylists(); return; }
+  if (gValid()) { showMyPlaylists(); return; }
   if (!CFG.client) {
     $('#gState').innerHTML = 'Connexion Google pas encore configurée (identifiant OAuth manquant).';
     return;
   }
   try {
-    if (!(window.google && google.accounts && google.accounts.oauth2)) await loadScript('https://accounts.google.com/gsi/client');
-    if (!GG.client) GG.client = google.accounts.oauth2.initTokenClient({
-      client_id: CFG.client, scope: G_SCOPE,
-      callback: r => { const p = GG.pending; GG.pending = null; if (r.error || !r.access_token) { p && p.rej(new Error(r.error || 'refus')); return; } GG.token = r.access_token; p && p.res(r.access_token); },
-      error_callback: e => { const p = GG.pending; GG.pending = null; p && p.rej(new Error(e.type || 'fenêtre fermée')); },
-    });
-    await gToken();
-    try { const me = await gApi('GET', 'channels', { part: 'snippet', mine: 'true' }); GG.name = (me.items && me.items[0] && me.items[0].snippet.title) || ''; } catch (_) {}
-    $('#gState').textContent = 'Connecté' + (GG.name ? ' : ' + GG.name : '') + ' ✓';
-    $('#gLogin').textContent = 'Mes playlists';
-    syncYtAdd();
+    await initGis();
+    const resume = GG.remember;
+    await gToken(resume ? '' : undefined);
+    await afterLogin(!resume);
     showMyPlaylists();
-    cloudLoad();
-  } catch (err) { $('#gState').textContent = 'Connexion annulée (' + (err.message || err) + ').'; }
+  } catch (err) { renderGoogle(GG.remember ? 'Session à reprendre (' + (err.message || err) + ').' : 'Connexion annulée (' + (err.message || err) + ').'); }
+}
+// au retour sur le site : on reste connecté. Le jeton (1 h) est réutilisé, puis renouvelé sans rien demander au premier geste
+function restoreGoogle() {
+  const a = store.get('gAuth', null);
+  if (!a || !CFG.client) return;
+  GG.remember = true; GG.name = a.name || ''; GG.email = a.email || '';
+  if (a.token && a.exp > Date.now() + 60e3) { GG.token = a.token; GG.exp = a.exp; }
+  renderGoogle(); syncYtAdd();
+  initGis().catch(() => {});
+  if (gValid()) cloudLoad();
+}
+// un clic ou une touche (geste de l'utilisateur, sinon le navigateur bloque la fenêtre Google) : renouvelle le jeton s'il expire
+function gGesture(e) {
+  if (!GG.remember || !GG.client || GG.pending) return;
+  if (GG.token && GG.exp > Date.now() + 5 * 60e3) return;
+  if (e && e.target && e.target.closest && e.target.closest('#gLogin, #gLogout')) return;   // ces boutons s'en chargent
+  if (Date.now() - GG.lastTry < 30e3) return;
+  GG.lastTry = Date.now();
+  gToken('').then(() => afterLogin(false)).catch(() => {
+    if (!gValid()) renderGoogle('Session Google à reprendre : touche « Reprendre la session ».');
+  });
+}
+document.addEventListener('pointerdown', gGesture, true);
+document.addEventListener('keydown', gGesture, true);
+// déconnexion : tout est d'abord envoyé sur le compte, puis l'appareil revient aux réglages de départ.
+// À la reconnexion, le compte fait foi : personnage, step, pas, réglages et progression reviennent comme avant.
+async function googleLogout() {
+  const out = $('#gLogout'); out.disabled = true;
+  $('#gState').textContent = 'Sauvegarde sur ton compte avant de te déconnecter…';
+  try {
+    if (!gValid() && GG.client) { try { await gToken(''); } catch (_) {} }
+    clearTimeout(CLOUD.timer);
+    let saved = false;
+    if (gValid()) { await cloudSave(); saved = CLOUD.state === 'ok'; }
+    if (!saved && !confirm('La dernière sauvegarde n\'a pas pu être envoyée sur ton compte Google.\n\nTe déconnecter quand même ? Tes réglages restent sur cet appareil.')) {
+      renderGoogle(); return;
+    }
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('stepcoach.')) keys.push(k); }
+    if (saved) { keys.forEach(k => localStorage.removeItem(k)); store.set('acctWins', true); }   // tout est sur le compte : appareil remis à zéro
+    else localStorage.removeItem('stepcoach.gAuth');
+    GG.token = null; GG.remember = false;
+    location.reload();
+  } finally { out.disabled = false; }
 }
 // appel à l'API YouTube avec le compte connecté ; si le jeton a expiré (1 h), on le renouvelle sans redemander
 async function gApi(method, path, params, body, retry = true) {
+  if (!gValid() && GG.renewing) await GG.renewing.catch(() => {});
+  if (!gValid() && GG.client && retry) await gToken('');
   const u = new URL('https://www.googleapis.com/youtube/v3/' + path);
   Object.entries(params || {}).forEach(([k, v]) => u.searchParams.set(k, v));
   const r = await fetch(u, { method, headers: { Authorization: 'Bearer ' + GG.token, ...(body && { 'Content-Type': 'application/json' }) }, body: body ? JSON.stringify(body) : undefined });
-  if (r.status === 401 && retry && GG.client) { await gToken(''); return gApi(method, path, params, body, false); }
+  if (r.status === 401 && retry && GG.client) { GG.token = null; await gToken(''); return gApi(method, path, params, body, false); }
   const j = r.status === 204 ? {} : await r.json();
   if (!r.ok) throw new Error(j.error && j.error.message || ('HTTP ' + r.status));
   return j;
@@ -4060,7 +4173,7 @@ async function playlistPicker(box, videoId, title) {
 // ligne de résultat + bouton « ＋ » (ajout à une playlist) quand on est connecté
 function resRowAdd(thumb, title, sub, onclick, videoId) {
   const row = resRow(thumb, title, sub, onclick);
-  if (!GG.token || !videoId) return row;
+  if (!GG.remember || !videoId) return row;
   const w = document.createElement('div'), line = document.createElement('div'), box = document.createElement('div');
   line.className = 'resw';
   const add = document.createElement('button'); add.className = 'addpl'; add.textContent = '＋'; add.title = 'Ajouter à une playlist';
@@ -4068,7 +4181,7 @@ function resRowAdd(thumb, title, sub, onclick, videoId) {
   line.append(row, add); w.append(line, box);
   return w;
 }
-function syncYtAdd() { const b = $('#ytAdd'); if (b) b.hidden = !(GG.token && Y.videoId); }
+function syncYtAdd() { const b = $('#ytAdd'); if (b) b.hidden = !(GG.remember && Y.videoId); }
 async function showMyPlaylists() {
   ytBox.innerHTML = '<div class="empty">Chargement de tes playlists…</div>';
   try {
@@ -4195,6 +4308,17 @@ $('#ytForm').addEventListener('submit', e => { e.preventDefault(); const q = $('
 });
 
 $('#gLogin').onclick = googleLogin;
+$('#gLogout').onclick = googleLogout;
+// dernier morceau écouté : proposé en tête de liste pour reprendre là où on en était
+function renderResume() {
+  const r = store.get('lastYT', null), start = $('#ytStart');
+  const old = $('#ytResume'); if (old) old.remove();
+  if (!r || !r.id || !start) return;
+  const row = resRow('https://i.ytimg.com/vi/' + encodeURIComponent(r.id) + '/default.jpg', r.title || 'Dernier morceau', '▶ Reprendre' + (r.author ? ' · ' + r.author : ''), () => playYT({ ids: [r.id] }));
+  row.id = 'ytResume'; start.before(row);
+}
+renderResume();
+restoreGoogle();
 $('#ytAdd').onclick = () => { const box = $('#ytAddBox'); box.innerHTML ? (box.innerHTML = '') : playlistPicker(box, Y.videoId, Y.title); };
 $('#ytAlt').onclick = () => { Y.ci = (Y.ci + 1) % Y.cands.length; tryCandidate(); };
 
@@ -4215,8 +4339,8 @@ $('#liveMic').onclick = () => startLive('mic');
 $('#liveStop').onclick = () => stopLive();
 
 $('#trGo').onclick = () => TRAIN.on ? stopTraining() : startTraining();
-$('#trStep').onchange = e => { TRAIN.step = e.target.checked; TRAIN.until = Math.floor(S.idleB) + (TRAIN.step ? 0 : 1); };
-$('#trMarks').onchange = e => { TRAIN.marks = e.target.checked; };
+$('#trStep').onchange = e => { TRAIN.step = e.target.checked; TRAIN.until = Math.floor(S.idleB) + (TRAIN.step ? 0 : 1); if (!TRAIN.on) store.set('trStep', TRAIN.step); };
+$('#trMarks').onchange = e => { TRAIN.marks = e.target.checked; store.set('trMarks', TRAIN.marks); };
 $('#cStop').onclick = stopTraining;
 $('#cStepB').onclick = trainNext;
 $('#cPrev').onclick = () => { TRAIN.step = true; const k = Math.max(0, Math.floor(S.idleB + 1e-6) - 1); S.idleB = k; TRAIN.until = k; renderTrain(); };
@@ -4258,7 +4382,7 @@ function doTap() {
   iv.sort((a, b) => a - b);
   let bpm = 60000 / iv[Math.floor(iv.length / 2)];
   if (S.bpmSrc && S.bpmSrc !== 'tap') { const al = alignOctave(bpm, S.bpm); if (Math.abs(al - S.bpm) / S.bpm < 0.05) bpm = S.bpm; }   // la base reste plus précise
-  if (bpm !== S.bpm) { setBpm(bpm, false); S.bpmSrc = 'tap'; }
+  if (bpm !== S.bpm) { setBpm(bpm, false); S.bpmSrc = 'tap'; rememberTempo(); }
   $('#bpmLbl').textContent = 'CALÉ ✓'; clearTimeout(doTap.l); doTap.l = setTimeout(() => { $('#bpmLbl').textContent = 'BPM'; }, 1500);
   // phase : le dernier tap tombe sur un temps
   const P = 60 / S.bpm, touch = 0.03;
@@ -4275,7 +4399,9 @@ function doTap() {
 $('#bpmChip').addEventListener('pointerdown', e => { e.preventDefault(); doTap(); });
 $('#tap').onclick = doTap;
 $('#offset').oninput = e => { S.offset = +e.target.value; $('#offsetV').textContent = (S.offset > 0 ? '+' : '') + S.offset.toFixed(2); };
+$('#vol').value = clamp(+store.get('vol', 0.8), 0, 1);
 $('#vol').oninput = e => { if (S.gain) S.gain.gain.value = +e.target.value; };
+$('#vol').onchange = e => store.set('vol', +e.target.value);
 window.addEventListener('keydown', e => {
   if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
   if (e.code === 'Space' && TRAIN.on && TRAIN.step) { e.preventDefault(); trainNext(); return; }
@@ -4286,10 +4412,10 @@ window.addEventListener('keydown', e => {
 buildSeq(); renderZone(); renderVariety(); renderTrain(); renderChoreo(); renderLook(); renderProgress(); syncPlayBtn(); initStage();
 { const SYNC_KEYS = new Set(['look3', 'board', 'variety', 'zone', 'moves2', 'trMove', 'trBpm', 'progress']), raw = store.set;
   store.set = (k, v) => { raw(k, v); if (SYNC_KEYS.has(k) && !(k === 'progress' && !PROG._sync)) cloudSaveSoon(); };
-  setInterval(() => { if (GG.token && PROG.updated > (CLOUD.lastProg || 0)) { CLOUD.lastProg = PROG.updated; store.set('progress', PROG); cloudSaveSoon(); } }, 60000);
+  setInterval(() => { if (GG.remember && PROG.updated > (CLOUD.lastProg || 0)) { CLOUD.lastProg = PROG.updated; store.set('progress', PROG); cloudSaveSoon(); } }, 60000);
   window.addEventListener('pagehide', () => store.set('progress', PROG)); }
 requestAnimationFrame(frame);
-window.__step = { S, Y, LIVE, seqAt, ease, TRAIN, startTraining, stopTraining, poseCue, GG, showMyPlaylists, ytSearch, PROG, cloudLoad, cloudSave, CLOUD, lookupTempo, syncToSound, SEQLEN: () => SEQ.length, startLive, stopLive, detectTempo, foldBpm, cleanTitle, parseYT, ytSearch, selected: () => selected, LOOK, hasKey: () => !!CFG.key };
+window.__step = { S, Y, LIVE, seqAt, ease, TRAIN, startTraining, stopTraining, poseCue, GG, showMyPlaylists, ytSearch, PROG, cloudLoad, cloudSave, CLOUD, restoreGoogle, TEMPOS, SEQLEN: () => SEQ.length, startLive, stopLive, detectTempo, foldBpm, cleanTitle, parseYT, ytSearch, selected: () => selected, LOOK, hasKey: () => !!CFG.key };
 })();
 </script>
 </body>
