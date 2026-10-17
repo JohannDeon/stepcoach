@@ -108,6 +108,10 @@ button.primary{background:linear-gradient(135deg,var(--pink),var(--violet));bord
 /* ── lecteur YouTube flottant ── */
 .ytbox{position:absolute;left:16px;bottom:104px;width:min(320px,44vw);z-index:5;padding:8px;display:grid;gap:8px}
 .ytframe{aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden}
+.ytmin{position:absolute;top:-12px;right:12px;z-index:2;font-size:11.5px;padding:3px 10px;border-radius:99px;background:#241446;border-color:rgba(255,255,255,.22);color:var(--ink)}
+.ytbox.mini{width:200px;padding:5px;gap:0}
+.ytbox.mini .ytside{display:none}
+.ytbox.mini .ytframe{border-radius:9px}
 .ytframe iframe{width:100%;height:100%;display:block}
 .ytside{display:grid;gap:6px;color:var(--mute);font-size:12.5px;line-height:1.4;padding:0 4px 2px}
 .ytside b{color:var(--ink);font-weight:600}
@@ -255,6 +259,8 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
 @media (max-width:640px){
   .nextbox{left:8px;right:8px;width:auto;bottom:86px;height:96px;border-radius:14px}
   .app.nexton .ytbox{bottom:188px}
+  .ytbox.mini,.app.nexton .ytbox.mini{left:auto;right:8px;top:58px;bottom:auto;width:160px;grid-template-columns:1fr}
+  .ytbox.mini .ytmin{top:auto;bottom:-12px}
 }
 @media (max-width:640px){
   .bar{top:10px;left:10px;right:10px}
@@ -338,6 +344,7 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
     </div>
 
     <div class="ytbox glass" id="ytbox" hidden>
+      <button class="ytmin" id="ytMin" title="Réduire la vidéo pour mieux voir la prof">Réduire ▾</button>
       <div class="ytframe"><div id="ytplayer"></div></div>
       <div class="ytside">
         <div id="ytinfo"></div>
@@ -4205,7 +4212,7 @@ function userData() {
   store.set('progress', PROG);
   return { v: 2, updated: Math.max(PROG.updated || 0, +store.get('localUpdated', 0)), look: LOOK, board: BOARD, variety, zone,
            moves: [...selected], train: { move: TRAIN.move, bpm: TRAIN.bpm, step: !!store.get('trStep', false), marks: TRAIN.marks },
-           vol: +$('#vol').value, nextOn: NEXT.on, tempos: TEMPOS, lb: LB.id ? { id: LB.id, cle: LB.cle, pseudo: LB.pseudo } : null, lastYT: store.get('lastYT', null), progress: PROG };
+           vol: +$('#vol').value, nextOn: NEXT.on, ytMini: !!store.get('ytMini', false), tempos: TEMPOS, lb: LB.id ? { id: LB.id, cle: LB.cle, pseudo: LB.pseudo } : null, lastYT: store.get('lastYT', null), progress: PROG };
 }
 function mergeProgress(a, b) {
   const out = { danceSec: Math.max(a.danceSec || 0, b.danceSec || 0), days: [...new Set([...(a.days || []), ...(b.days || [])])].sort(), moves: {}, updated: Math.max(a.updated || 0, b.updated || 0),
@@ -4232,6 +4239,7 @@ function applyUserData(d) {
       if (typeof d.train.marks === 'boolean') { TRAIN.marks = d.train.marks; store.set('trMarks', TRAIN.marks); }
     }
     if (d.lb && d.lb.id && d.lb.cle) { if (d.lb.id !== LB.id) { LB.acc = 0; store.set('lbAcc', 0); } LB.id = d.lb.id; LB.cle = d.lb.cle; LB.pseudo = d.lb.pseudo || ''; lbStore(false); }
+    if (typeof d.ytMini === 'boolean') setYtMini(d.ytMini);
     if (typeof d.nextOn === 'boolean') { NEXT.on = d.nextOn; store.set('nextOn', NEXT.on); $('#nextOn').checked = NEXT.on; }
     if (typeof d.vol === 'number') { $('#vol').value = clamp(d.vol, 0, 1); store.set('vol', +$('#vol').value); if (S.gain) S.gain.gain.value = +$('#vol').value; }
     if (d.tempos && typeof d.tempos === 'object') { Object.keys(d.tempos).forEach(k => { const a = d.tempos[k], b = TEMPOS[k]; if (a && a.b && (!b || (a.t || 0) > (b.t || 0))) TEMPOS[k] = a; }); store.set('tempos', TEMPOS); }
@@ -4761,6 +4769,15 @@ $('#liveTab').onclick = () => startLive('tab');
 $('#liveMic').onclick = () => startLive('mic');
 $('#liveStop').onclick = () => stopLive();
 
+// vidéo YouTube réduite en mini-lecteur (YouTube interdit de la cacher complètement, et un lecteur caché se met en pause sur mobile)
+function setYtMini(on, save = true) {
+  $('#ytbox').classList.toggle('mini', on);
+  $('#ytMin').textContent = on ? 'Agrandir ▴' : 'Réduire ▾';
+  $('#ytMin').title = on ? 'Afficher la vidéo en grand' : 'Réduire la vidéo pour mieux voir la prof';
+  if (save) store.set('ytMini', on);
+}
+setYtMini(!!store.get('ytMini', false), false);
+$('#ytMin').onclick = () => setYtMini(!$('#ytbox').classList.contains('mini'));
 $('#nextOn').checked = NEXT.on;
 $('#nextOn').onchange = e => { NEXT.on = e.target.checked; store.set('nextOn', NEXT.on); };
 $('#trGo').onclick = () => TRAIN.on ? stopTraining() : startTraining();
@@ -4835,7 +4852,7 @@ window.addEventListener('keydown', e => {
 });
 
 buildSeq(); renderZone(); renderVariety(); renderTrain(); renderChoreo(); renderLook(); renderProgress(); syncPlayBtn(); initStage();
-{ const SYNC_KEYS = new Set(['look3', 'board', 'variety', 'zone', 'moves2', 'trMove', 'trBpm', 'trStep', 'trMarks', 'vol', 'nextOn', 'tempos', 'lastYT', 'progress']), raw = store.set;
+{ const SYNC_KEYS = new Set(['look3', 'board', 'variety', 'zone', 'moves2', 'trMove', 'trBpm', 'trStep', 'trMarks', 'vol', 'nextOn', 'ytMini', 'tempos', 'lastYT', 'progress']), raw = store.set;
   store.set = (k, v) => { raw(k, v); if (SYNC_KEYS.has(k) && !(k === 'progress' && !PROG._sync)) cloudSaveSoon(); };
   setInterval(() => { if (GG.remember && PROG.updated > (CLOUD.lastProg || 0)) { CLOUD.lastProg = PROG.updated; store.set('progress', PROG); cloudSaveSoon(); } }, 60000);
   window.addEventListener('pagehide', () => store.set('progress', PROG)); }
