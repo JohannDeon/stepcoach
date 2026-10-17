@@ -224,6 +224,13 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
 .plpick .chips{margin:0}
 .plpick form{display:flex;gap:6px}
 
+/* ── pas à venir (pictogrammes qui défilent vers la ligne « maintenant ») ── */
+.nextbox{position:absolute;right:16px;bottom:104px;width:min(520px,50vw);height:134px;z-index:5;padding:0;border-radius:18px;overflow:hidden;pointer-events:none;transition:opacity .35s}
+.nextbox canvas{width:100%;height:100%;display:block}
+@media (max-width:640px){
+  .nextbox{left:8px;right:8px;width:auto;bottom:86px;height:96px;border-radius:14px}
+  .app.nexton .ytbox{bottom:188px}
+}
 @media (max-width:640px){
   .bar{top:10px;left:10px;right:10px}
   .logo{font-size:22px}
@@ -288,6 +295,8 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
     </header>
 
     <div class="badge glass"><b><span id="moveName">Échauffement</span><i id="moveLvl"></i></b><span id="moveNext">Choisis un morceau →</span></div>
+
+    <div id="nextBox" class="nextbox glass" hidden aria-hidden="true"><canvas id="nextCv"></canvas></div>
 
     <div id="coach" class="glass" hidden>
       <div class="ctop"><b id="cName"></b><span id="cRep"></span></div>
@@ -388,6 +397,9 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
           <div class="opt prog"><h4>📈 Ma progression</h4><div id="progBox"></div></div>
           <div class="opt"><h4>Le step</h4><div id="boardBox"></div></div>
           <div class="opt"><h4>Position par rapport au step</h4><div class="chips" id="zoneChips" style="margin:0"></div></div>
+          <div class="opt"><h4>Pas à venir</h4>
+            <label class="chk" style="margin:0"><input type="checkbox" id="nextOn"> Afficher les prochains pas en images (comme dans Just Dance)</label>
+          </div>
           <div class="opt"><h4>Variation des pas</h4><div class="chips" id="varChips" style="margin:0"></div><p class="note" id="varDesc" style="margin:6px 0 0"></p></div>
           <div class="row">
             <button data-preset="1">Débutant</button>
@@ -751,7 +763,7 @@ function buildSeq() {
   const go = to => {
     if (first === null) first = to;
     const ps = transition(cur, to);
-    if (ps.length) blocks.push({ name: 'Déplacement autour du step', lvl: 0, style: 'alt', poses: ps });
+    if (ps.length) blocks.push({ name: 'Déplacement autour du step', lvl: 0, style: 'alt', poses: ps, key: 'travel', side: 0 });
     cur = to;
   };
   const laneOf = () => {
@@ -790,7 +802,7 @@ function buildSeq() {
             if (!m.fixed) { p.l = mapFoot(p.l, lane, true); p.r = mapFoot(p.r, lane, false); }
             return p;
           });
-          blocks.push({ name: m.name, lvl: m.lvl, style: st2, poses });
+          blocks.push({ name: m.name, lvl: m.lvl, style: st2, poses, key: k, side });
           cur = endLane;
         }
       });
@@ -800,7 +812,7 @@ function buildSeq() {
   SEQ = [];
   blocks.forEach((bl, i) => {
     const next = blocks[(i + 1) % blocks.length];
-    bl.poses.forEach((p, j) => SEQ.push({ pose: p, name: bl.name, lvl: bl.lvl, style: bl.style, next: next.name, j }));
+    bl.poses.forEach((p, j) => SEQ.push({ pose: p, name: bl.name, lvl: bl.lvl, style: bl.style, next: next.name, j, key: bl.key, side: bl.side }));
   });
   S.lastIdx = null;
   renderCycle();
@@ -3499,7 +3511,179 @@ function frame(now) {
     const hp = stage.render({ pose0: p0, pose1: p1, poseM: pM, pose2: p2, e: ease(frac), frac, b, dt, pulse, amt: S.amt, tsec: t, blink, lookX, talk, happy, marks });
     updateBubble(hp, bAlpha, Math.floor((t - BUB.start) * 38));
   }
+  try { drawNext(b); } catch (err) { console.error(err); NEXT.on = false; }
   requestAnimationFrame(frame);
+}
+/* ── pas à venir, façon Just Dance : chaque pas est une carte (pictogramme + nom) qui glisse jusqu'à la ligne
+   « maintenant » ; la carte en cours se remplit au fil des temps ── */
+const NEXT = { on: store.get('nextOn', true) !== false, cache: new Map(), seq: null, at: null, vis: false, W: 0, H: 0, dpr: 1 };
+const PICTO_BEAT = { jack: 0, plyo: 0, march: 0, mambo: 2, lunge2: 2, over: 4 };
+const NEXT_COLS = ['#ff3d9a', '#27e1ff', '#ffd23d', '#7dff4d', '#c08bff', '#ff8a3d', '#5dfff0'];
+const moveCol = key => { let h = 7; for (const c of key || '') h = (h * 31 + c.charCodeAt(0)) >>> 0; return NEXT_COLS[h % NEXT_COLS.length]; };
+function seqBlocks() {
+  if (NEXT.seq === SEQ) return NEXT.at;
+  const at = new Array(SEQ.length); let s = 0;
+  for (let i = 1; i <= SEQ.length; i++) if (i === SEQ.length || SEQ[i].j === 0) { const bl = { s, n: i - s }; for (let k = s; k < i; k++) at[k] = bl; s = i; }
+  NEXT.seq = SEQ; NEXT.at = at; return at;
+}
+// pictogramme : silhouette néon dans la pose caractéristique du pas, vue de face légèrement de biais
+function picto(key, side, style, size, col) {
+  const id = [key, side, style, size, col, NEXT.dpr].join('|');
+  let cv = NEXT.cache.get(id); if (cv) return cv;
+  cv = document.createElement('canvas'); cv.width = cv.height = Math.round(size * NEXT.dpr);
+  const g = cv.getContext('2d'); g.scale(NEXT.dpr, NEXT.dpr);
+  const k = size / 215; g.translate(size / 2, size - 5); g.scale(k, -k);
+  g.lineCap = g.lineJoin = 'round';
+  if (key === 'travel') {                         // déplacement : flèche circulaire autour d'un step
+    g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 5; g.strokeRect(-70, 4, 140, 22);
+    g.strokeStyle = col; g.shadowColor = col; g.shadowBlur = 8 * NEXT.dpr; g.lineWidth = 12;
+    g.beginPath(); g.ellipse(0, 70, 82, 46, 0, 0.25, Math.PI * 1.75); g.stroke();
+    const ax = 82 * Math.cos(0.25), ay = 70 + 46 * Math.sin(0.25);
+    g.fillStyle = col; g.beginPath(); g.moveTo(ax + 22, ay - 6); g.lineTo(ax - 18, ay - 14); g.lineTo(ax - 4, ay + 26); g.closePath(); g.fill();
+    NEXT.cache.set(id, cv); return cv;
+  }
+  const m = MOVES[key], j = Math.min(PICTO_BEAT[key] ?? 1, m.beats.length - 1), bt = m.beats[j];
+  const arms = (ARMS[style] || ARMS.hips)(j % 4);
+  let p = { l: bt[0], r: bt[1], al: arms[0], ar: arms[1], turn: bt[2] || 0 };
+  if (side) p = mirror(p);
+  const SH = 24;                                   // hauteur du step dans le pictogramme
+  const ft = f => {
+    const y = f[1] <= STEP ? f[1] / STEP * SH : SH + (f[1] - STEP);
+    const z = clamp(((f[2] || 0) - (f[1] <= 1 ? -1 : 0)) * 52, -72, 78);
+    return [clamp(f[0], -95, 95) * 0.95, y, z];
+  };
+  const F = [ft(p.l), ft(p.r)], sup = Math.min(F[0][1], F[1][1]);
+  const onStep = m.beats.some(b2 => b2[0][1] >= STEP - 1 || b2[1][1] >= STEP - 1);
+  // la jambe qui bouge le plus donne le sens du biais (on voit mieux ce qui va vers l'avant)
+  const lift = i => F[i][1] - sup + Math.abs(F[i][2]) * 0.6;
+  const mv = lift(0) > lift(1) ? 0 : 1, th = (F[mv][0] < 0 ? -1 : 1) * 0.42, cs = Math.cos(th), sn = Math.sin(th);
+  const P = v => [v[0] * cs + v[2] * sn, v[1] + v[2] * 0.2];
+  const wl = 1 / (1 + Math.exp((F[0][1] - F[1][1]) / 6)), hx = 0.9 * (wl * F[0][0] + (1 - wl) * F[1][0]);
+  const L1 = 47, L2 = 47, HW = 9;
+  let hy = sup + 92;
+  F.forEach((f, i) => { const hxi = hx + (i ? HW : -HW), d2 = (f[0] - hxi) ** 2 + f[2] ** 2; hy = Math.min(hy, f[1] + 6 + Math.sqrt(Math.max(1, 92 * 92 - d2))); });
+  const sub = (a, b2) => [a[0] - b2[0], a[1] - b2[1], a[2] - b2[2]], add = (a, b2, t = 1) => [a[0] + b2[0] * t, a[1] + b2[1] * t, a[2] + b2[2] * t];
+  const len = a => Math.hypot(a[0], a[1], a[2]), dot = (a, b2) => a[0] * b2[0] + a[1] * b2[1] + a[2] * b2[2];
+  const ik = (root, tgt, l1, l2, pole) => {
+    let d = sub(tgt, root), dist = len(d);
+    dist = clamp(dist, Math.abs(l1 - l2) + 0.5, l1 + l2 - 0.5); d = d.map(x => x / (len(d) || 1));
+    const a = (l1 * l1 - l2 * l2 + dist * dist) / (2 * dist), h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
+    let pv = add(pole, d, -dot(pole, d)); const pl = len(pv) || 1; pv = pv.map(x => x / pl);
+    return [add(add(root, d, a), pv, h), add(root, d, dist)];
+  };
+  const legs = F.map((f, i) => {
+    const sd = i ? 1 : -1, hip = [hx + sd * HW, hy, 0], ank = [f[0], f[1] + 6, f[2]];
+    const upK = clamp((f[1] - sup - 22) / 30, 0, 1) * clamp((f[2] + 4) / 20, 0, 1);
+    const [knee, end] = ik(hip, ank, L1, L2, [sd * (0.25 + 0.75 * upK), 0.35 * upK, 1]);
+    return { hip, knee, end, sd, z: (knee[2] + end[2]) / 2 };
+  });
+  const lean = clamp(hx * 0.06, -6, 6), neck = [hx + lean, hy + 50, 0];
+  const armsP = [p.al, p.ar].map((a, i) => {
+    const sd = i ? 1 : -1, sh = [neck[0] + sd * 17, neck[1] - 3, 0];
+    const tgt = [sh[0] + sd * a[0] * 0.8, sh[1] + a[1] * 0.8, 8];
+    const [el, hand] = ik(sh, tgt, 33, 33, [sd * 0.7, -1, -0.3]);
+    return { sh, el, hand };
+  });
+  // step
+  if (onStep) {
+    g.fillStyle = 'rgba(255,255,255,.14)'; g.strokeStyle = 'rgba(255,255,255,.45)'; g.lineWidth = 3;
+    g.beginPath(); g.roundRect(-82, 0, 164, SH, 6); g.fill(); g.stroke();
+  } else { g.strokeStyle = 'rgba(255,255,255,.3)'; g.lineWidth = 3; g.beginPath(); g.moveTo(-90, 0); g.lineTo(90, 0); g.stroke(); }
+  const line = (pts, w) => { g.lineWidth = w; g.beginPath(); pts.forEach((v, i) => { const q = P(v); i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); }); g.stroke(); };
+  g.shadowColor = col; g.shadowBlur = 9 * NEXT.dpr; g.strokeStyle = col; g.fillStyle = col;
+  const legOrder = legs.slice().sort((a, b2) => a.z - b2.z);
+  const drawLeg = l => { line([l.hip, l.knee, l.end], 15); const e = P(l.end); g.beginPath(); g.ellipse(e[0] + l.sd * 3, e[1] - 3, 9, 5.5, 0, 0, Math.PI * 2); g.fill(); };
+  drawLeg(legOrder[0]);
+  // buste
+  const pl = P([hx - 13, hy - 4, 0]), pr = P([hx + 13, hy - 4, 0]), sl = P([neck[0] - 19, neck[1], 0]), sr = P([neck[0] + 19, neck[1], 0]);
+  const wl2 = P([hx + lean * 0.5 - 10, hy + 22, 0]), wr2 = P([hx + lean * 0.5 + 10, hy + 22, 0]);
+  g.beginPath(); g.moveTo(pl[0], pl[1]); g.quadraticCurveTo(wl2[0], wl2[1], sl[0], sl[1]); g.lineTo(sr[0], sr[1]);
+  g.quadraticCurveTo(wr2[0], wr2[1], pr[0], pr[1]); g.closePath(); g.fill();
+  drawLeg(legOrder[1]);
+  armsP.forEach(a => { line([a.sh, a.el, a.hand], 11); const h = P(a.hand); g.beginPath(); g.arc(h[0], h[1], 7, 0, Math.PI * 2); g.fill(); });
+  const hd = P([neck[0], neck[1] + 23, 0]); g.beginPath(); g.arc(hd[0], hd[1], 16, 0, Math.PI * 2); g.fill();
+  // reflet blanc : effet néon
+  g.shadowBlur = 0; g.strokeStyle = 'rgba(255,255,255,.55)';
+  legs.forEach(l => line([l.hip, l.knee, l.end], 3.5));
+  armsP.forEach(a => line([a.sh, a.el, a.hand], 3));
+  NEXT.cache.set(id, cv); return cv;
+}
+function wrapText(g, txt, maxW, maxLines) {
+  const words = txt.split(' '), out = []; let cur = '';
+  words.forEach(w => { const t = cur ? cur + ' ' + w : w; if (g.measureText(t).width <= maxW || !cur) cur = t; else { out.push(cur); cur = w; } });
+  if (cur) out.push(cur);
+  if (out.length > maxLines) { out.length = maxLines; let l = out[maxLines - 1]; while (l.length > 1 && g.measureText(l + '…').width > maxW) l = l.slice(0, -1); out[maxLines - 1] = l + '…'; }
+  return out;
+}
+function drawNext(b) {
+  const box = $('#nextBox');
+  const want = NEXT.on && !TRAIN.on && SEQ.length > 0 && S.amt > 0.02;
+  if (want !== NEXT.vis) { NEXT.vis = want; box.hidden = !want; $('.app').classList.toggle('nexton', want); }
+  if (!want) return;
+  box.style.opacity = clamp(S.amt * 1.4, 0, 1).toFixed(2);
+  const cv = $('#nextCv'), dpr = Math.min(2, window.devicePixelRatio || 1), W = cv.clientWidth, H = cv.clientHeight;
+  if (!W || !H) return;
+  if (W !== NEXT.W || H !== NEXT.H || dpr !== NEXT.dpr) { NEXT.W = W; NEXT.H = H; NEXT.dpr = dpr; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); NEXT.cache.clear(); }
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const at = seqBlocks(), L = SEQ.length, mod = i => ((i % L) + L) % L;
+  const small = H < 110, ppb = clamp(W / (small ? 8.6 : 10.5), 30, 50), nowX = Math.round(Math.min(W * 0.2, 96)), pad = small ? 6 : 8;
+  const cardH = H - pad * 2, pic = cardH - (small ? 34 : 46);
+  // début (en temps) du pas en cours : ses mouvements commencent un temps avant sa première pose
+  const base = Math.floor(b) + 1, bl0 = at[mod(base)];
+  let s = base - (mod(base) - bl0.s);
+  s -= at[mod(s - 1)].n;                           // le pas précédent, qui sort par la gauche
+  for (let guard = 0; guard < 14; guard++) {
+    const bl = at[mod(s)], e = SEQ[mod(s)], t0 = s - 1, t1 = t0 + bl.n;
+    const x0 = nowX + (t0 - b) * ppb, x1 = nowX + (t1 - b) * ppb - 6;
+    if (x0 > W) break;
+    if (x1 > -4) {
+      const cur = b >= t0 && b < t1, past = b >= t1, col = moveCol(e.key);
+      const soon = !cur && !past ? clamp(1 - (t0 - b), 0, 1) : 0;        // le pas suivant s'allume juste avant de commencer
+      g.globalAlpha = past ? clamp(1 - (b - t1) * 1.5, 0, 1) * 0.6 : 1;
+      // carte
+      g.beginPath(); g.roundRect(x0, pad, x1 - x0, cardH, 12);
+      g.fillStyle = cur ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.045)'; g.fill();
+      if (cur) {                                    // remplissage : temps déjà faits
+        g.save(); g.clip(); g.fillStyle = col + '2e'; g.fillRect(x0, pad, nowX - x0, cardH); g.restore();
+      }
+      g.lineWidth = cur ? 2.2 : 1.2 + soon;
+      g.strokeStyle = cur ? col : soon ? col : 'rgba(255,255,255,.16)';
+      if (cur || soon) { g.shadowColor = col; g.shadowBlur = cur ? 14 : 10 * soon; }
+      g.beginPath(); g.roundRect(x0, pad, x1 - x0, cardH, 12); g.stroke(); g.shadowBlur = 0;
+      // pictogramme (reste visible tant que la carte est à l'écran), nom du pas dessous
+      const w = x1 - x0, px = clamp(x0 + 5, 5, Math.max(x0 + 5, x1 - pic - 5)), tx = Math.max(x0 + 8, Math.min(px + 2, x1 - 60)), tw = x1 - tx - 6;
+      g.save(); g.beginPath(); g.roundRect(x0, pad, w, cardH, 12); g.clip();
+      g.drawImage(picto(e.key, e.side, e.style, pic, col), px, pad + 3, pic, pic);
+      if (tw > 26) {
+        g.fillStyle = cur ? '#ffffff' : '#ece6ff'; g.font = `700 ${small ? 11 : 12.5}px "Segoe UI",system-ui,sans-serif`; g.textBaseline = 'top';
+        const nm = e.key === 'travel' ? 'Déplacement' : e.name;
+        g.fillText(wrapText(g, nm, tw, 1)[0], tx, pad + pic + 5);
+        if (!small) {
+          g.fillStyle = 'rgba(214,204,245,.72)'; g.font = '500 11px "Segoe UI",system-ui,sans-serif';
+          const subT = e.key === 'travel' ? 'autour du step' : `pied ${e.side ? 'gauche' : 'droit'} · ${ARM_NAMES[e.style] || ''}`;
+          g.fillText(wrapText(g, subT, tw, 1)[0], tx, pad + pic + 21);
+        }
+      }
+      g.restore();
+      // temps du pas : un repère par temps, le 1 plus marqué
+      for (let q = 0; q < bl.n; q++) {
+        const bx2 = nowX + (t0 + q + 1 - b) * ppb - 3;
+        if (bx2 < x0 + 4 || bx2 > x1 - 2) continue;
+        const done = b >= t0 + q + 1 - 0.02;
+        g.fillStyle = done ? col : 'rgba(255,255,255,.28)';
+        g.beginPath(); g.arc(bx2 - ppb / 2, pad + cardH - 7, q === 0 ? 3.4 : 2.4, 0, Math.PI * 2); g.fill();
+      }
+      g.globalAlpha = 1;
+    }
+    s += bl.n;
+  }
+  // ligne « maintenant »
+  const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#ff3d9a'); gr.addColorStop(1, '#27e1ff');
+  g.fillStyle = gr; g.shadowColor = '#ffffff'; g.shadowBlur = 10; g.fillRect(nowX - 1.5, 3, 3, H - 6); g.shadowBlur = 0;
+  g.beginPath(); g.moveTo(nowX - 6, 2); g.lineTo(nowX + 6, 2); g.lineTo(nowX, 9); g.closePath(); g.fillStyle = '#fff'; g.fill();
+  // les pas déjà passés s'effacent à gauche
+  const fade = g.createLinearGradient(0, 0, nowX * 0.8, 0); fade.addColorStop(0, 'rgba(13,6,32,.85)'); fade.addColorStop(1, 'rgba(13,6,32,0)');
+  g.fillStyle = fade; g.fillRect(0, 0, nowX * 0.8, H);
 }
 function isPlaying() {
   return S.mode === 'preview' ? S.playing : S.mode === 'yt' ? Y.state === 1 : (S.metronome || !!S.extSync);
@@ -3935,7 +4119,7 @@ function userData() {
   store.set('progress', PROG);
   return { v: 2, updated: Math.max(PROG.updated || 0, +store.get('localUpdated', 0)), look: LOOK, board: BOARD, variety, zone,
            moves: [...selected], train: { move: TRAIN.move, bpm: TRAIN.bpm, step: !!store.get('trStep', false), marks: TRAIN.marks },
-           vol: +$('#vol').value, tempos: TEMPOS, lastYT: store.get('lastYT', null), progress: PROG };
+           vol: +$('#vol').value, nextOn: NEXT.on, tempos: TEMPOS, lastYT: store.get('lastYT', null), progress: PROG };
 }
 function mergeProgress(a, b) {
   const out = { danceSec: Math.max(a.danceSec || 0, b.danceSec || 0), days: [...new Set([...(a.days || []), ...(b.days || [])])].sort(), moves: {}, updated: Math.max(a.updated || 0, b.updated || 0) };
@@ -3959,6 +4143,7 @@ function applyUserData(d) {
       if (typeof d.train.step === 'boolean') { store.set('trStep', d.train.step); if (!TRAIN.on) TRAIN.step = d.train.step; }
       if (typeof d.train.marks === 'boolean') { TRAIN.marks = d.train.marks; store.set('trMarks', TRAIN.marks); }
     }
+    if (typeof d.nextOn === 'boolean') { NEXT.on = d.nextOn; store.set('nextOn', NEXT.on); $('#nextOn').checked = NEXT.on; }
     if (typeof d.vol === 'number') { $('#vol').value = clamp(d.vol, 0, 1); store.set('vol', +$('#vol').value); if (S.gain) S.gain.gain.value = +$('#vol').value; }
     if (d.tempos && typeof d.tempos === 'object') { Object.keys(d.tempos).forEach(k => { const a = d.tempos[k], b = TEMPOS[k]; if (a && a.b && (!b || (a.t || 0) > (b.t || 0))) TEMPOS[k] = a; }); store.set('tempos', TEMPOS); }
     if (d.lastYT && d.lastYT.id) { store.set('lastYT', d.lastYT); renderResume(); }
@@ -4341,6 +4526,8 @@ $('#liveTab').onclick = () => startLive('tab');
 $('#liveMic').onclick = () => startLive('mic');
 $('#liveStop').onclick = () => stopLive();
 
+$('#nextOn').checked = NEXT.on;
+$('#nextOn').onchange = e => { NEXT.on = e.target.checked; store.set('nextOn', NEXT.on); };
 $('#trGo').onclick = () => TRAIN.on ? stopTraining() : startTraining();
 $('#trStep').onchange = e => { TRAIN.step = e.target.checked; TRAIN.until = Math.floor(S.idleB) + (TRAIN.step ? 0 : 1); if (!TRAIN.on) store.set('trStep', TRAIN.step); };
 $('#trMarks').onchange = e => { TRAIN.marks = e.target.checked; store.set('trMarks', TRAIN.marks); };
@@ -4413,7 +4600,7 @@ window.addEventListener('keydown', e => {
 });
 
 buildSeq(); renderZone(); renderVariety(); renderTrain(); renderChoreo(); renderLook(); renderProgress(); syncPlayBtn(); initStage();
-{ const SYNC_KEYS = new Set(['look3', 'board', 'variety', 'zone', 'moves2', 'trMove', 'trBpm', 'progress']), raw = store.set;
+{ const SYNC_KEYS = new Set(['look3', 'board', 'variety', 'zone', 'moves2', 'trMove', 'trBpm', 'trStep', 'trMarks', 'vol', 'nextOn', 'tempos', 'lastYT', 'progress']), raw = store.set;
   store.set = (k, v) => { raw(k, v); if (SYNC_KEYS.has(k) && !(k === 'progress' && !PROG._sync)) cloudSaveSoon(); };
   setInterval(() => { if (GG.remember && PROG.updated > (CLOUD.lastProg || 0)) { CLOUD.lastProg = PROG.updated; store.set('progress', PROG); cloudSaveSoon(); } }, 60000);
   window.addEventListener('pagehide', () => store.set('progress', PROG)); }
