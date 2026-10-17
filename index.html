@@ -771,6 +771,33 @@ function buildSeq() {
     if (v === 1) return laneFor(n++);
     n++; return pick(LANES_OF[zone] || LANES_OF.mix);
   };
+  // un bloc = le pas fait une fois d'un côté. Jamais plus de 4 fois le même pas d'affilée : au-delà on intercale un autre pas
+  let runKey = null, runN = 0, brk = 0, firstKey = null;
+  const breakRun = (k, lane) => {
+    const others = keys.filter(x => x !== k);
+    const bk = others.length ? others[brk++ % others.length] : k !== 'basic' ? 'basic' : null;
+    if (!bk) return;
+    const bm = MOVES[bk], bst = bm.styles[brk % bm.styles.length];
+    [0, 1].forEach(sd => block(bk, sd, bst, bm.fixed ? lane : cur));
+  };
+  const block = (k, side, st2, lane) => {
+    const m = MOVES[k];
+    if (k === runKey && runN >= 4) breakRun(k, lane);
+    const startLane = m.fixed ? (side ? mirrorLane(m.startLane) : m.startLane) : lane;
+    const endLane = m.fixed ? (side ? mirrorLane(m.endLane) : m.endLane) : lane;
+    go(startLane);
+    const poses = m.beats.map((bt, j) => {
+      const [al, ar] = ARMS[st2](j % 4);
+      let p = { l: bt[0], r: bt[1], al, ar, turn: bt[2] || 0 };
+      if (side) p = mirror(p);
+      if (!m.fixed) { p.l = mapFoot(p.l, lane, true); p.r = mapFoot(p.r, lane, false); }
+      return p;
+    });
+    blocks.push({ name: m.name, lvl: m.lvl, style: st2, poses, key: k, side });
+    cur = endLane;
+    if (firstKey === null) firstKey = k;
+    if (k === runKey) runN++; else { runKey = k; runN = 1; }
+  };
   ringFlip = false;
   for (let r = 0; r < rounds; r++) {
     let order = keys.slice();
@@ -790,23 +817,15 @@ function buildSeq() {
       if (v === 3) sides = R() < 0.45 ? [R() < 0.5 ? 0 : 1] : (R() < 0.5 ? [0, 1] : [1, 0]);
       else if (v === 2 && R() < 0.5) sides = [1, 0];
       sides.forEach(side => {
-        const startLane = m.fixed ? (side ? mirrorLane(m.startLane) : m.startLane) : lane;
-        const endLane = m.fixed ? (side ? mirrorLane(m.endLane) : m.endLane) : lane;
-        for (let rp = 0; rp < (m.fixed ? 1 : reps); rp++) {
-          go(startLane);
-          const st2 = v === 3 && rp === 0 && R() < 0.3 ? pick(allStyles) : style;
-          const poses = m.beats.map((bt, j) => {
-            const [al, ar] = ARMS[st2](j % 4);
-            let p = { l: bt[0], r: bt[1], al, ar, turn: bt[2] || 0 };
-            if (side) p = mirror(p);
-            if (!m.fixed) { p.l = mapFoot(p.l, lane, true); p.r = mapFoot(p.r, lane, false); }
-            return p;
-          });
-          blocks.push({ name: m.name, lvl: m.lvl, style: st2, poses, key: k, side });
-          cur = endLane;
-        }
+        for (let rp = 0; rp < (m.fixed ? 1 : reps); rp++) block(k, side, v === 3 && rp === 0 && R() < 0.3 ? pick(allStyles) : style, lane);
       });
     });
+  }
+  // la boucle recommence au début : on compte aussi la série qui ouvre l'enchaînement
+  if (runKey !== null && runKey === firstKey) {
+    let lead = 0;
+    for (const bl of blocks) { if (bl.key === 'travel') continue; if (bl.key !== firstKey) break; lead++; }
+    if (lead < blocks.filter(bl => bl.key !== 'travel').length && runN + lead > 4) breakRun(runKey, cur);
   }
   if (first !== null) go(first);
   SEQ = [];
@@ -1054,8 +1073,9 @@ function follow(st, k, target, w, dt) {
 const softmin = (a, b, k = 2.5) => { const m = Math.min(a, b); return m - k * Math.log(Math.exp((m - a) / k) + Math.exp((m - b) / k)); };
 // hauteur max du bassin : chaque pied impose une limite calculée sur son appui (sans le lever du pied), qui glisse
 // du départ à l'arrivée sur tout le temps : le corps descend / monte progressivement au lieu de chuter d'un coup
-function supportLimit(limOf, foot, pose0, pose1, fl, fr, frac) {
+function supportLimit(limOf, foot, pose0, pose1, fl, fr, frac, tJump) {
   let t = clamp(frac / 0.9, 0, 1); t = t * t * t * (t * (6 * t - 15) + 10);
+  if (tJump !== undefined) t = tJump;                       // saut : l'appui passe du départ à l'arrivée pendant le vol
   const one = (a, b, cur, sd) => {
     return softmin(limOf(foot(a, b, t, false), sd), limOf(cur, sd) + 5, 3);
   };
@@ -1417,13 +1437,17 @@ function buildStage(T, FX) {
       const dlx = pose1.l[0] - pose0.l[0], drx = pose1.r[0] - pose0.r[0], dly = pose1.l[1] - pose0.l[1], dry = pose1.r[1] - pose0.r[1];
       const jump = amt > 0.5 && Math.hypot(dlx, dly) > 3 && Math.hypot(drx, dry) > 3 &&
                    ((dly !== 0 && Math.sign(dly) === Math.sign(dry)) || (dlx * drx < 0 && Math.abs(dlx - drx) > 20));
-      const eJ = jump ? (t => t * t * (3 - 2 * t))(clamp((frac - 0.16) / 0.66, 0, 1)) : 0;   // appel, envol, réception juste avant le temps
-      const flight = jump ? Math.sin(Math.PI * eJ) : 0;
+      // saut : appel (flexion) au début du temps, envol vers 30 %, vol balistique (vitesse horizontale constante, parabole
+      // en hauteur), réception PILE sur le temps suivant, puis amorti. Les jambes se replient un peu en l'air.
+      const vertJ = jump && Math.abs(dly) > 10 && Math.abs(dry) > 10;            // monter / descendre du step pieds joints
+      const eJ = jump ? clamp((frac - 0.3) / 0.7, 0, 1) : 0;
+      const flight = jump ? 4 * eJ * (1 - eJ) : 0;
+      const JH = vertJ ? 24 : 11;
       const foot = (a, bb, ee = e, lift = true) => {
         const x = lerp(bx(a[0]), bx(bb[0]), ee), y0 = lerp(a[1], bb[1], ee), z0 = lerp(a[2] || 0, bb[2] || 0, ee);
         const dz = Math.abs((bb[2] || 0) - (a[2] || 0));
         const mv = Math.hypot(bb[0] - a[0], bb[1] - a[1], dz * 30) > 3;
-        const yy = y0 + (mv && lift ? (jump ? 7 * Math.sin(Math.PI * ee) : (16 + 18 * dz) * Math.pow(Math.sin(Math.PI * Math.pow(ee, 0.85)), 1.1)) : 0);
+        const yy = y0 + (mv && lift ? (jump ? JH * 4 * ee * (1 - ee) : (16 + 18 * dz) * Math.pow(Math.sin(Math.PI * Math.pow(ee, 0.85)), 1.1)) : 0);
         let yw = yy <= STEP ? yy / STEP * BD.h : BD.h + (yy - STEP);
         if (mv && lift) {
           const ins = Math.min(BD.hx + 9 - Math.abs(x), BD.hz + 9 - Math.abs(z0 * ZS));
@@ -1446,19 +1470,20 @@ function buildStage(T, FX) {
       const hzT = 0.9 * (sL * fl.z + (1 - sL) * fr.z);
       if (!st.init) { st.hx = hxT; st.hz = hzT; st.hxV = st.hzV = 0; st.hy = NaN; }
       const hx0 = st.hx;
-      follow(st, 'hx', hxT, 10, dt); follow(st, 'hz', hzT, 10, dt);
+      follow(st, 'hx', hxT, jump ? 42 : 10, dt); follow(st, 'hz', hzT, jump ? 42 : 10, dt);   // en l'air, le corps suit les pieds sans retard
       const reachY = (ft, jx, jz) => Math.sqrt(Math.max(1, REACH * REACH - (ft.x - jx) ** 2 - (ft.z - jz) ** 2));
       const dip = (6.5 * bounce(frac) + 1.2) * amt;
       // pendant un déplacement le bassin est en retard sur les pieds : on mesure la portée depuis un bassin « à mi-chemin »
       const hxm = (st.hx + hxT) / 2, hzm = (st.hz + hzT) / 2;
-      const hjMax = supportLimit((ft, sd) => ft.y + ANK + reachY(ft, hxm + sd * hj * right.x, hzm + sd * hj * right.z), foot, pose0, pose1, fl, fr, frac);
+      const hjMax = supportLimit((ft, sd) => ft.y + ANK + reachY(ft, hxm + sd * hj * right.x, hzm + sd * hj * right.z), foot, pose0, pose1, fl, fr, frac, jump ? eJ : undefined);
       // saut : flexion d'appel, envol du bassin, puis amorti plus marqué au temps suivant
       const bi = Math.floor(b);
       if (jump) st.jumpBeat = bi;
-      const crouch = jump ? 8 * Math.exp(-(((frac - 0.07) / 0.075) ** 2)) * amt : 0;
-      const land = !jump && st.jumpBeat === bi - 1 ? 5 * bounce(frac) * amt : 0;
-      const lift = 15 * flight * amt;
-      const hjY = softmin(follow(st, 'hy', hjMax + lift - dip - crouch - land, jump ? 34 : 16, dt), hjMax + lift, 1.5);
+      const crouch = jump ? (vertJ ? 10 : 7) * Math.exp(-(((frac - 0.13) / 0.11) ** 2)) * amt : 0;   // amorti de la réception précédente + appel
+      const land = !jump && st.jumpBeat === bi - 1 ? (st.jumpV ? 9 : 6) * Math.exp(-(((frac - 0.09) / 0.12) ** 2)) * amt : 0;
+      if (jump) st.jumpV = vertJ;
+      const lift = (vertJ ? 17 : 9) * flight * amt;
+      const hjY = softmin(follow(st, 'hy', hjMax + lift - (jump ? 0 : dip) - crouch - land, jump ? 60 : 16, dt), hjMax + lift, 1.5);
       const H = J.H.set(st.hx, hjY + D.HDY, st.hz);
       const leanT = clamp((fr.x + fl.x) * 0.03, -3, 3) + 2 * Math.sin(Math.PI * b) * amt;
       st.lean += (leanT - st.lean) * (1 - Math.exp(-dt * 9));
