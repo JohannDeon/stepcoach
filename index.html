@@ -300,7 +300,7 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
   <ul>
     <li>Recherche de musique sur YouTube, connexion à ton compte pour retrouver et créer tes playlists.</li>
     <li>Détection automatique du tempo (BPM) et calage sur le son.</li>
-    <li>21 pas de step classés par niveau : pas de base, V-step, A-step, tap-up, genou levé, kick, talon-fesse, mambo, charleston, turn-step, over the top, jumping jack…</li>
+    <li>26 pas de step classés par niveau : pas de base, V-step, A-step, tap-up, genou levé, kick, talon-fesse, pas de vigne, squat, tap au sol, répéteurs, mambo, charleston, turn-step, over the top, jumping jack…</li>
     <li>Mode entraînement : le pas est montré au ralenti, avec décompte, consigne à chaque temps et empreintes des pieds.</li>
     <li>Variation des enchaînements réglable, position autour du step (derrière, devant, sur les côtés).</li>
     <li>Personnage personnalisable (coiffure, yeux, tenue, couleurs) et rendus Just Dance, manga, néon et silhouette néon.</li>
@@ -437,6 +437,7 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
           <div class="opt prog"><h4>📈 Ma progression</h4><div id="progBox"></div></div>
           <div class="opt"><h4>Le step</h4><div id="boardBox"></div></div>
           <div class="opt"><h4>Position par rapport au step</h4><div class="chips" id="zoneChips" style="margin:0"></div></div>
+          <div class="opt"><h4>Style</h4><div class="chips" id="grooveChips" style="margin:0"></div></div>
           <div class="opt"><h4>Pas à venir</h4>
             <label class="chk" style="margin:0"><input type="checkbox" id="nextOn"> Afficher les prochains pas en images (comme dans Just Dance)</label>
           </div>
@@ -660,6 +661,7 @@ const NX = 17;                         // demi-écart des pieds en position neut
 // pied : [x, hauteur, profondeur]  (profondeur : -1 derrière le step, 0 sur/à côté, +1 devant)
 const G = x => [x, 0, -1], T = x => [x, STEP, 0], F = x => [x, 0, 1], Sd = (x, z) => [x, 0, z];
 const KN = [-22, STEP + 50, 0.6];          // genou levé : pied sous le genou, devant la hanche
+const KICK = [-30, STEP + 38, 1.5], CURL = [-12, STEP + 64, -0.75], TAPS = [-14, STEP + 5, 0.15];
 
 // ── le step : taille réglable (en cm) et style ──
 const BOARD_STYLES = [['neon', 'Néon'], ['classic', 'Classique'], ['wood', 'Bois'], ['glass', 'Verre lumineux'], ['white', 'Blanc pro']];
@@ -682,6 +684,9 @@ const A = {
   rest: [8, -76], hip: [-1, -58], pump: [20, 36], out: [76, 8], diag: [54, 56], clap: [-16, 70], low: [-14, -30],
   bic: [42, 40], bic2: [36, 22], high: [50, 62], mid: [66, -14], x: [-10, -30], box1: [10, 26], box2: [18, -6],
   up: [20, 36], low2: [14, -56], jack: [56, 58],
+  // bras des cours de step en vidéo : [vers l'extérieur, vers le haut, vers l'avant]
+  punch: [-30, -4, 52], guard: [14, -14, 22], press: [16, 76], post: [46, 10], front: [22, 26, 54], down: [8, -72],
+  snap: [30, 4, 12], snap2: [24, -16, 8], hiV: [40, 70, 8], elbow: [-6, -20, 30],
 };
 // chaque style donne [bras gauche, bras droit] pour le temps j (0..3)
 const ARMS = {
@@ -696,9 +701,15 @@ const ARMS = {
   diag:   j => [[A.hip, A.diag], [A.diag, A.diag], [A.diag, A.rest], [A.rest, A.rest]][j],
   clap:   j => [[A.hip, A.hip], [A.clap, A.clap], [A.low, A.low], [A.hip, A.hip]][j],
   jack:   j => j % 2 ? [A.rest, A.rest] : [A.jack, A.jack],
+  punch:  j => j % 2 ? [A.guard, A.punch] : [A.punch, A.guard],
+  press:  j => j % 2 ? [A.press, A.press] : [A.post, A.post],
+  front:  j => j % 2 ? [A.down, A.down] : [A.front, A.front],
+  snap:   j => j % 2 ? [A.snap2, A.snap2] : [A.snap, A.snap],
+  hype:   j => [[A.hiV, A.hiV], [A.clap, A.clap], [A.hiV, A.hiV], [A.hip, A.hip]][j],
 };
 const ARM_NAMES = { hips: 'mains aux hanches', pump: 'pompes', alt: 'bras alternés', biceps: 'biceps', wave: 'vagues',
-                    cross: 'croisés / ouverts', box: 'boxe', open: 'bras ouverts', diag: 'diagonales', clap: 'claps', jack: 'jumping jack' };
+                    cross: 'croisés / ouverts', box: 'boxe', open: 'bras ouverts', diag: 'diagonales', clap: 'claps', jack: 'jumping jack',
+                    punch: 'coups de poing', press: 'développé', front: 'élévations avant', snap: 'claquements de doigts', hype: 'bras en V' };
 
 const LEVELS = [
   { n: 1, name: 'Débutant',      stars: '★☆☆', color: '#5dff9c' },
@@ -707,21 +718,21 @@ const LEVELS = [
 ];
 // beats : [pied gauche, pied droit, (rotation en tours)]
 const MOVES = {
-  basic: { lvl: 1, name: 'Pas de base', desc: 'Monte D, monte G, descend D, descend G.', styles: ['pump', 'alt', 'biceps', 'hips'], beats: [
+  basic: { lvl: 1, name: 'Pas de base', desc: 'Monte D, monte G, descend D, descend G.', styles: ['pump', 'alt', 'biceps', 'punch', 'hips'], beats: [
     [G(-NX), T(NX)], [T(-NX), T(NX)], [T(-NX), G(NX)], [G(-NX), G(NX)]] },
-  tapup: { lvl: 1, name: 'Tap-up', desc: 'Monte D, tape le step du pied G, descend G puis D.', styles: ['hips', 'alt', 'box'], beats: [
+  tapup: { lvl: 1, name: 'Tap-up', desc: 'Monte D, tape le step du pied G, descend G puis D.', styles: ['hips', 'snap', 'alt', 'box'], beats: [
     [G(-NX), T(NX)], [[-26, STEP + 5], T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
-  knee: { lvl: 1, name: 'Genou levé', desc: 'Monte D, lève le genou G, descend G puis D.', styles: ['pump', 'biceps', 'wave'], beats: [
+  knee: { lvl: 1, name: 'Genou levé', desc: 'Monte D, lève le genou G, descend G puis D.', styles: ['pump', 'biceps', 'press', 'wave'], beats: [
     [G(-NX), T(NX)], [KN, T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
-  march: { lvl: 1, name: 'Footing sur place', desc: 'Petites levées de genoux alternées derrière le step.', styles: ['alt', 'box', 'pump'], beats: [
+  march: { lvl: 1, name: 'Footing sur place', desc: 'Petites levées de genoux alternées derrière le step.', styles: ['alt', 'punch', 'box', 'pump'], beats: [
     [G(-NX), [NX, 20, -1]], [[-NX, 20, -1], G(NX)], [G(-NX), [NX, 20, -1]], [[-NX, 20, -1], G(NX)]] },
-  v: { lvl: 2, name: 'V-step', desc: 'Monte en écartant (forme de V), redescends au centre.', styles: ['diag', 'open', 'wave'], beats: [
+  v: { lvl: 2, name: 'V-step', desc: 'Monte en écartant (forme de V), redescends au centre.', styles: ['diag', 'hype', 'open', 'press'], beats: [
     [G(-NX), T(58)], [T(-58), T(58)], [T(-58), G(NX)], [G(-NX), G(NX)]] },
-  a: { lvl: 2, name: 'A-step', desc: 'Monte pieds serrés, redescends en écartant (forme de A).', styles: ['pump', 'cross', 'biceps'], beats: [
+  a: { lvl: 2, name: 'A-step', desc: 'Monte pieds serrés, redescends en écartant (forme de A).', styles: ['pump', 'front', 'cross', 'biceps'], beats: [
     [G(-NX), T(12)], [T(-12), T(12)], [T(-12), G(44)], [G(-44), G(44)]] },
   clap: { lvl: 2, name: 'Tape & clap', desc: 'Monte D, tape du pied G en frappant des mains en l\'air.', styles: ['clap', 'cross', 'wave'], beats: [
     [G(-NX), T(NX)], [[-26, STEP + 6], T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
-  side: { lvl: 2, name: 'Jambe sur le côté', desc: 'Monte D, jambe G tendue sur le côté, bras ouverts.', styles: ['open', 'wave', 'diag'], beats: [
+  side: { lvl: 2, name: 'Jambe sur le côté', desc: 'Monte D, jambe G tendue sur le côté, bras ouverts.', styles: ['open', 'snap', 'wave', 'diag'], beats: [
     [G(-NX), T(NX)], [[-78, STEP + 26], T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
   lunge: { lvl: 2, name: 'Fente latérale', desc: 'Monte D, fente du pied G sur le côté, reviens, descends.', styles: ['hips', 'cross', 'biceps'], beats: [
     [G(-NX), T(NX)], [G(-56), T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
@@ -735,7 +746,7 @@ const MOVES = {
   plyo: { lvl: 3, name: 'Saut (plyo)', desc: 'Saut pieds joints sur le step, puis retour au sol. Deux fois.', styles: ['pump', 'jack', 'alt'], beats: [
     [T(-NX - 3), T(NX + 3)], [G(-NX - 3), G(NX + 3)], [T(-NX - 3), T(NX + 3)], [G(-NX), G(NX)]] },
   kick: { lvl: 1, name: 'Coup de pied avant', desc: 'Monte D, donne un petit coup de pied G vers l\'avant, descends G puis D.', styles: ['pump', 'box', 'cross'], beats: [
-    [G(-NX), T(NX)], [[-30, STEP + 38, 1.5], T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
+    [G(-NX), T(NX)], [KICK, T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
   curl: { lvl: 1, name: 'Talon-fesse', desc: 'Monte D, ramène le talon G vers la fesse, descends G puis D.', styles: ['biceps', 'pump', 'alt'], beats: [
     [G(-NX), T(NX)], [[-12, STEP + 64, -0.75], T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
   glute: { lvl: 2, name: 'Kick arrière', desc: 'Monte D, jambe G tendue vers l\'arrière (fessiers), descends.', styles: ['diag', 'wave', 'pump'], beats: [
@@ -751,6 +762,18 @@ const MOVES = {
   charleston: { lvl: 3, name: 'Charleston', desc: 'Monte D, coup de pied G devant, redescends G, pointe D derrière. 8 temps.', styles: ['alt', 'wave', 'box'], beats: [
     [G(-NX), T(NX)], [[-30, STEP + 38, 1.5], T(NX)], [G(-NX), T(NX)], [G(-NX), [NX, 12, -1.35]],
     [G(-NX), T(NX)], [[-30, STEP + 38, 1.5], T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
+  grape: { lvl: 1, name: 'Pas de vigne', desc: 'Derrière le step : pas sur le côté, pied croisé derrière, pas sur le côté, touche ; puis retour. 8 temps.', styles: ['clap', 'snap', 'alt'], beats: [
+    [G(-NX), G(NX + 30)], [[NX + 40, 0, -1.3], G(NX + 30)], [[NX + 40, 0, -1.3], G(NX + 70)], [[NX + 36, 5, -1], G(NX + 70)],
+    [G(NX + 6), G(NX + 70)], [G(NX + 6), [NX - 4, 0, -1.3]], [G(-NX), [NX - 4, 0, -1.3]], [G(-NX), G(NX)]] },
+  squat: { lvl: 1, name: 'Double squat', desc: 'Derrière le step : écarte G puis D, deux squats (fesses en arrière), resserre G puis D. 8 temps.', styles: ['front', 'press', 'punch'], beats: [
+    [G(-46), G(NX)], [G(-46), G(46)], [G(-46), G(46), 0, 20], [G(-46), G(46)], [G(-46), G(46), 0, 20], [G(-46), G(46)], [G(-NX), G(46)], [G(-NX), G(NX)]] },
+  tapdown: { lvl: 2, name: 'Tap au sol', desc: 'Monte sur le step, tape le sol derrière du pied G, remonte, puis du pied D, redescends. 8 temps.', styles: ['punch', 'snap', 'pump'], beats: [
+    [G(-NX), T(NX)], [T(-NX), T(NX)], [[-NX - 6, 4, -1], T(NX)], [T(-NX), T(NX)],
+    [T(-NX), [NX + 6, 4, -1]], [T(-NX), T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
+  curl3: { lvl: 2, name: 'Triple talon-fesse', desc: 'Monte D, trois talon-fesse du pied G en tapant le step entre chaque, redescends. 8 temps.', styles: ['biceps', 'pump', 'punch'], beats: [
+    [G(-NX), T(NX)], [CURL, T(NX)], [TAPS, T(NX)], [CURL, T(NX)], [TAPS, T(NX)], [CURL, T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
+  kick3: { lvl: 3, name: 'Répéteur coup de pied', desc: 'Monte D, trois coups de pied G vers l\'avant en tapant le step entre chaque, redescends. 8 temps.', styles: ['punch', 'box', 'cross'], beats: [
+    [G(-NX), T(NX)], [KICK, T(NX)], [TAPS, T(NX)], [KICK, T(NX)], [TAPS, T(NX)], [KICK, T(NX)], [G(-NX), T(NX)], [G(-NX), G(NX)]] },
   over: { lvl: 3, name: 'Over the top', desc: 'Traverse le step d\'un côté à l\'autre en passant dessus. 8 temps.', styles: ['alt', 'pump', 'wave'],
           fixed: true, startLane: 'left', endLane: 'right', beats: [
     [Sd(-150, -0.38), Sd(-134, 0.38)], [Sd(-150, -0.38), Sd(-134, 0.38)],
@@ -759,7 +782,7 @@ const MOVES = {
 };
 const MOVE_KEYS = Object.keys(MOVES);
 
-const mirror = p => ({ l: [-p.r[0], p.r[1], p.r[2]], r: [-p.l[0], p.l[1], p.l[2]], al: p.ar, ar: p.al, turn: -p.turn });
+const mirror = p => ({ l: [-p.r[0], p.r[1], p.r[2]], r: [-p.l[0], p.l[1], p.l[2]], al: p.ar, ar: p.al, turn: -p.turn, sq: p.sq || 0 });
 const DEFAULT_SEL = MOVE_KEYS.filter(k => MOVES[k].lvl <= 2);
 let selected = new Set((store.get('moves2', DEFAULT_SEL)).filter(k => MOVES[k]));
 if (!selected.size) selected.add('basic');
@@ -771,6 +794,8 @@ let zone = store.get('zone', 'mix');
 // variation : 0 répétitive (on répète chaque pas), 1 normale, 2 variée (ordre, bras et places au hasard), 3 surprise (tout se mélange)
 const VARIETY = [[0, 'Répétitive'], [1, 'Normale'], [2, 'Variée'], [3, 'Surprise']];
 let variety = clamp(+store.get('variety', 1) || 0, 0, 3), varSeed = 12345;
+// style : 0 = fitness (sobre), 1 = dance (rebond, hanches et buste qui groovent, comme dans les vidéos de step)
+let groove = clamp(+store.get('groove', 1), 0, 1);
 const LANES_OF = { mix: ['back', 'back', 'front', 'left', 'right'], back: ['back'], front: ['front'], sides: ['left', 'right'] };
 function rng(seed) { let x = (seed >>> 0) || 1; return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
 const laneFor = n => zone === 'back' ? 'back' : zone === 'front' ? 'front' : zone === 'sides' ? (n % 2 ? 'left' : 'right') : LANE_ORDER[n % LANE_ORDER.length];
@@ -841,7 +866,7 @@ function buildSeq() {
     go(startLane);
     const poses = m.beats.map((bt, j) => {
       const [al, ar] = ARMS[st2](j % 4);
-      let p = { l: bt[0], r: bt[1], al, ar, turn: bt[2] || 0 };
+      let p = { l: bt[0], r: bt[1], al, ar, turn: bt[2] || 0, sq: bt[3] || 0 };
       if (side) p = mirror(p);
       if (!m.fixed) { p.l = mapFoot(p.l, lane, true); p.r = mapFoot(p.r, lane, false); }
       return p;
@@ -888,6 +913,15 @@ function buildSeq() {
   });
   S.lastIdx = null;
   renderCycle();
+}
+function renderGroove() {
+  const w = $('#grooveChips'); if (!w) return;
+  w.innerHTML = '';
+  [[0, 'Fitness (sobre)'], [1, 'Dance (groove)']].forEach(([g, label]) => {
+    const b = document.createElement('button'); b.textContent = label; b.className = groove === g ? 'on' : '';
+    b.onclick = () => { groove = g; store.set('groove', g); renderGroove(); };
+    w.appendChild(b);
+  });
 }
 function renderVariety() {
   const w = $('#varChips'); if (!w) return;
@@ -1112,7 +1146,7 @@ $('#lookRandom').onclick = () => {
    ════════════════════════════════════════════════════════════ */
 const cv = $('#cv');
 let drawerInset = 0;
-const ease = f => { const t = clamp((f - 0.08) / 0.8, 0, 1); return t * t * t * (t * (6 * t - 15) + 10); };
+const ease = f => { const t = clamp((f - 0.08) / 0.8, 0, 1); return clamp(t * t * t * (t * (6 * t - 15) + 10), 0, 1); };   // borné : un arrondi au-delà de 1 donnait des NaN
 // ressort amorti critique : suit une cible sans cassure de vitesse (le centre de gravité ne « saute » jamais)
 function follow(st, k, target, w, dt) {
   const v = k + 'V';
@@ -1500,11 +1534,11 @@ function buildStage(T, FX) {
         const x = lerp(bx(a[0]), bx(bb[0]), ee), y0 = lerp(a[1], bb[1], ee), z0 = lerp(a[2] || 0, bb[2] || 0, ee);
         const dz = Math.abs((bb[2] || 0) - (a[2] || 0));
         const mv = Math.hypot(bb[0] - a[0], bb[1] - a[1], dz * 30) > 3;
-        const yy = y0 + (mv && lift ? (jump ? JH * 4 * ee * (1 - ee) : (16 + 18 * dz) * Math.pow(Math.sin(Math.PI * Math.pow(ee, 0.85)), 1.1)) : 0);
+        const yy = y0 + (mv && lift ? (jump ? JH * 4 * ee * (1 - ee) : (16 + 18 * dz) * Math.pow(Math.max(0, Math.sin(Math.PI * Math.pow(clamp(ee, 0, 1), 0.85))), 1.1)) : 0);
         let yw = yy <= STEP ? yy / STEP * BD.h : BD.h + (yy - STEP);
         if (mv && lift) {
           const ins = Math.min(BD.hx + 9 - Math.abs(x), BD.hz + 9 - Math.abs(z0 * ZS));
-          if (ins > 0) { const k = Math.min(1, ins / 9); yw += Math.max(0, BD.h + 6 - yw) * k * k * (3 - 2 * k) * Math.pow(Math.sin(Math.PI * ee), 0.7); }
+          if (ins > 0) { const k = Math.min(1, ins / 9); yw += Math.max(0, BD.h + 6 - yw) * k * k * (3 - 2 * k) * Math.pow(Math.max(0, Math.sin(Math.PI * ee)), 0.7); }
         }
         return { x, z: z0 * ZS, mv, y: yw };
       };
@@ -1512,20 +1546,23 @@ function buildStage(T, FX) {
       const t0 = pose0.turn || 0, t1 = pose1.turn || 0;
       let dtn = t1 - t0; dtn -= Math.round(dtn);
       const yaw = (t0 + dtn * e) * Math.PI * 2;
-      const twist = 0.12 * Math.sin(Math.PI * b) * amt;
+      const GV = 1 + 0.75 * groove;                      // style dance : tout le haut du corps groove davantage
+      const twist = 0.12 * GV * Math.sin(Math.PI * b) * amt;
       const fwd = J.fwd.set(Math.sin(yaw), 0, Math.cos(yaw)), right = J.right.set(Math.cos(yaw), 0, -Math.sin(yaw));
       J.yaw = yaw; J.twist = twist;
 
       // bassin : suit le pied d'appui et plie à chaque temps
       const hj = D.HJ, REACH = (D.TH + D.SH) * 0.975;
       const sL = 1 / (1 + Math.exp((fl.y - fr.y) / 6));
-      const hxT = 0.95 * (sL * fl.x + (1 - sL) * fr.x) + 3.5 * Math.sin(Math.PI * b) * amt + 2.4 * Math.sin(tsec * 0.9) * (1 - amt);
+      const hxT = 0.95 * (sL * fl.x + (1 - sL) * fr.x) + 3.5 * GV * Math.sin(Math.PI * b) * amt + 2.4 * Math.sin(tsec * 0.9) * (1 - amt);
       const hzT = 0.9 * (sL * fl.z + (1 - sL) * fr.z);
       if (!st.init) { st.hx = hxT; st.hz = hzT; st.hxV = st.hzV = 0; st.hy = NaN; }
       const hx0 = st.hx;
       follow(st, 'hx', hxT, jump ? 42 : 10, dt); follow(st, 'hz', hzT, jump ? 42 : 10, dt);   // en l'air, le corps suit les pieds sans retard
       const reachY = (ft, jx, jz) => Math.sqrt(Math.max(1, REACH * REACH - (ft.x - jx) ** 2 - (ft.z - jz) ** 2));
-      const dip = (6.5 * bounce(frac) + 1.2) * amt;
+      const dip = ((6.5 + 2.5 * groove) * bounce(frac) + 1.2) * amt;
+      // squat : le bassin descend, fesses en arrière
+      const sq = lerp(pose0.sq || 0, pose1.sq || 0, e) * amt;
       // pendant un déplacement le bassin est en retard sur les pieds : on mesure la portée depuis un bassin « à mi-chemin »
       const hxm = (st.hx + hxT) / 2, hzm = (st.hz + hzT) / 2;
       const hjMax = supportLimit((ft, sd) => ft.y + ANK + reachY(ft, hxm + sd * hj * right.x, hzm + sd * hj * right.z), foot, pose0, pose1, fl, fr, frac, jump ? eJ : undefined);
@@ -1536,12 +1573,12 @@ function buildStage(T, FX) {
       const land = !jump && st.jumpBeat === bi - 1 ? (st.jumpV ? 9 : 6) * Math.exp(-(((frac - 0.09) / 0.12) ** 2)) * amt : 0;
       if (jump) st.jumpV = vertJ;
       const lift = (vertJ ? 17 : 9) * flight * amt;
-      const hjY = softmin(follow(st, 'hy', hjMax + lift - (jump ? 0 : dip) - crouch - land, jump ? 60 : 16, dt), hjMax + lift, 1.5);
-      const H = J.H.set(st.hx, hjY + D.HDY, st.hz);
-      const leanT = clamp((fr.x + fl.x) * 0.03, -3, 3) + 2 * Math.sin(Math.PI * b) * amt;
+      const hjY = softmin(follow(st, 'hy', hjMax + lift - (jump ? 0 : dip) - crouch - land - sq, jump ? 60 : 16, dt), hjMax + lift, 1.5);
+      const H = J.H.set(st.hx, hjY + D.HDY, st.hz).addScaledVector(fwd, -0.45 * sq);
+      const leanT = clamp((fr.x + fl.x) * 0.03, -3, 3) + 2 * GV * Math.sin(Math.PI * b) * amt;
       st.lean += (leanT - st.lean) * (1 - Math.exp(-dt * 9));
-      const breath = 1.0 * Math.sin(2 * Math.PI * b) * amt + 1.4 * Math.sin(tsec * 1.9) * (1 - amt);
-      const C = J.C.copy(H).add(_v1.set(0, D.TL + breath, 0)).addScaledVector(right, st.lean).addScaledVector(fwd, 1.5);
+      const breath = 1.0 * Math.sin(2 * Math.PI * b) * amt + 1.4 * Math.sin(tsec * 1.9) * (1 - amt) - 1.6 * groove * bounce(frac) * amt;
+      const C = J.C.copy(H).add(_v1.set(0, D.TL + breath, 0)).addScaledVector(right, st.lean).addScaledVector(fwd, 1.5 + 0.5 * sq);
       const yH = yaw - twist * 0.6, yC = yaw + twist;
       J.rH.set(Math.cos(yH), 0, -Math.sin(yH)); J.fH.set(Math.sin(yH), 0, Math.cos(yH));
       J.rC.set(Math.cos(yC), 0, -Math.sin(yC)); J.fC.set(Math.sin(yC), 0, Math.cos(yC));
@@ -1550,8 +1587,8 @@ function buildStage(T, FX) {
       st.HD.lerp(HDt, 1 - Math.exp(-dt * 13));
       J.HD.copy(st.HD); J.top.copy(st.HD).add(_v1.set(0, 20, 0));
       J.headYaw = yaw + twist * 0.5 + lookX * 0.012;
-      J.nod = 0.9 * Math.sin(Math.PI * b) * amt;
-      J.roll = 0.05 * Math.sin(Math.PI * b) * amt + 0.035 * Math.sin(tsec * 0.7) * (1 - amt);
+      J.nod = (0.9 + 1.1 * groove * bounce(frac)) * Math.sin(Math.PI * b) * amt;
+      J.roll = 0.05 * GV * Math.sin(Math.PI * b) * amt + 0.035 * Math.sin(tsec * 0.7) * (1 - amt);
       // balancement des cheveux longs / de la jupe (inertie du bassin)
       const hdt = Math.min(Math.max(dt, 1e-3), 0.05), vx = (st.hx - hx0) / hdt;
       st.swV += ((-vx * 0.06 - st.sw) * 70 - st.swV * 8) * hdt; st.sw = clamp(st.sw + st.swV * hdt, -7, 7);
@@ -1638,13 +1675,14 @@ function buildStage(T, FX) {
         const a0 = (poseM || pose0)[k], a1 = pose0[k], a2 = pose1[k], a3 = (pose2 || pose1)[k];
         const f = clamp(frac, 0, 1);
         const ox2 = clamp(crom(a0[0], a1[0], a2[0], a3[0], f), -32, 92), oy2 = clamp(crom(a0[1], a1[1], a2[1], a3[1], f), -96, 104);
-        return [ox2 * AS, oy2 * AS + (a2[1] > 20 ? 4 * pulse : 0)];
+        const fw = crom(a0[2] || 0, a1[2] || 0, a2[2] || 0, a3[2] || 0, f);
+        return [ox2 * AS, oy2 * AS + (a2[1] > 20 ? 4 * pulse : 0), Math.max(0, fw) * AS];
       };
       st.dbg.cur = 0;
       const tgs = [];
       [[-1, 'al'], [1, 'ar']].forEach(([sd, key], i) => {
         const s2 = st.arm[i];
-        const [out, upv] = aOf(key);
+        const [out, upv, fwA] = aOf(key);
         let thT = Math.atan2(out, -upv);
         const rT2 = Math.min(Math.hypot(out, upv), (D.A1 + D.A2) * 0.98);
         if (!s2.init) { s2.th = thT; s2.r = rT2; s2.init = true; }
@@ -1657,7 +1695,7 @@ function buildStage(T, FX) {
         }
         const sh = J.sh[i].copy(C).addScaledVector(J.rC, sd * D.SHX).add(_v1.set(0, -4.2 * D.k + clamp(-Math.cos(s2.th) * s2.r * 0.05, -1, 3.5), 0));
         const o2 = Math.sin(s2.th) * s2.r * sd, u2 = -Math.cos(s2.th) * s2.r;
-        const fz = 5 + 0.1 * Math.max(0, u2) - 0.06 * Math.max(0, -u2 - 40);
+        const fz = 5 + 0.1 * Math.max(0, u2) - 0.06 * Math.max(0, -u2 - 40) + fwA;
         tgs[i] = sh.clone().addScaledVector(right, o2).add(_v1.set(0, u2, 0)).addScaledVector(fwd, fz);
       });
       {
@@ -2743,7 +2781,7 @@ function buildStage(T, FX) {
         const x = lerp(bx(a[0]), bx(bb[0]), ee), y0 = lerp(a[1], bb[1], ee), z0 = lerp(a[2] || 0, bb[2] || 0, ee);
         const dz = Math.abs((bb[2] || 0) - (a[2] || 0));
         const mv = Math.hypot(bb[0] - a[0], bb[1] - a[1], dz * 30) > 3;
-        const yy = y0 + (mv && lift ? (16 + 18 * dz) * Math.pow(Math.sin(Math.PI * Math.pow(ee, 0.85)), 1.1) : 0);
+        const yy = y0 + (mv && lift ? (16 + 18 * dz) * Math.pow(Math.max(0, Math.sin(Math.PI * Math.pow(clamp(ee, 0, 1), 0.85))), 1.1) : 0);
         return { x, z: z0 * ZS, zl: z0, mv, y: yy <= STEP ? yy / STEP * BD.h : BD.h + (yy - STEP) };
       };
       const fl = foot(pose0.l, pose1.l), fr = foot(pose0.r, pose1.r);
@@ -3159,7 +3197,7 @@ if (!MOVES[TRAIN.move]) TRAIN.move = 'basic';
 const TR_SPEEDS = [[60, 'Très lent'], [80, 'Lent'], [100, 'Moyen'], [125, 'Vitesse réelle']];
 const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
 // consigne d'un pied entre deux poses (côté vu à l'écran : on fait comme dans un miroir)
-function footCue(a, b, side) {
+function footCue(a, b, side, floor) {
   const x0 = a[0], y0 = a[1], z0 = a[2] || 0, x1 = b[0], y1 = b[1], z1 = b[2] || 0;
   if (Math.abs(x1 - x0) < 3 && Math.abs(y1 - y0) < 3 && Math.abs(z1 - z0) < 0.1) return null;
   const P = 'pied ' + side;
@@ -3174,13 +3212,24 @@ function footCue(a, b, side) {
   }
   if (y1 > STEP + 1) return `${P} tape le step`;
   if (Math.abs(y1 - STEP) <= 1) return (y0 < STEP - 1 ? `${P} monte` : `${P} se déplace`) + onTop(x1, z1);
+  if (y1 > 1 && y1 <= 8 && y0 > STEP - 1) return `${P} vient taper le sol derrière`;
+  if (y1 > 1 && y1 <= 8) return `${P} touche le sol à côté de l'autre`;
   if (y1 > 1) return z1 < -1 ? `pointe du ${P} derrière` : `petite levée du ${P}`;
-  if (y0 <= 1 && Math.abs(z1 - z0) < 0.3 && Math.abs(x1) > 40 && Math.abs(x1) > Math.abs(x0) + 15 && Math.abs(x1) < 100) return `fente du ${P} sur le côté`;
-  if (y0 <= 1 && Math.abs(z1 - z0) < 0.3 && Math.abs(x1) < Math.abs(x0) - 15 && Math.abs(x0) < 100) return `${P} revient au centre`;
-  return (y0 > 1 ? `${P} redescend au sol` : `${P} se déplace au sol`) + ground(x1, z1);
+  if (y0 <= 8) {                                  // le pied était déjà au sol (ou le touchait)
+    if (z1 < -1.15 && z1 > -1.4 && Math.abs(x1 - x0) > 15) return `${P} croise derrière l'autre`;
+    if (z0 < -1.15 && z1 >= -1.05) return `${P} se décroise et se pose à côté`;
+    if (Math.abs(z1 - z0) < 0.3 && Math.abs(x1) > 40 && Math.abs(x1) > Math.abs(x0) + 15 && Math.abs(x1) < 100) return floor ? `${P} s'écarte sur le côté` : `fente du ${P} sur le côté`;
+    if (Math.abs(z1 - z0) < 0.3 && Math.abs(x1) < Math.abs(x0) - 15 && Math.abs(x0) < 100) return `${P} revient au centre`;
+    if (Math.abs(z1 - z0) < 0.3 && Math.abs(x1 - x0) > 15) return `pas du ${P} sur le côté`;
+    return `${P} se déplace au sol` + ground(x1, z1);
+  }
+  return `${P} redescend au sol` + ground(x1, z1);
 }
 function poseCue(a, b) {
-  const l = footCue(a.l, b.l, 'gauche'), r = footCue(a.r, b.r, 'droit');
+  if ((b.sq || 0) - (a.sq || 0) > 8) return 'Descends en squat, fesses en arrière, genoux au-dessus des pieds';
+  if ((a.sq || 0) - (b.sq || 0) > 8) return 'Remonte en poussant dans les talons';
+  const floor = b.l[1] <= 8 && b.r[1] <= 8;
+  const l = footCue(a.l, b.l, 'gauche', floor), r = footCue(a.r, b.r, 'droit', floor);
   const turn = Math.abs((b.turn || 0) - (a.turn || 0)) > 0.01 ? ' · et tourne d’un quart de tour' : '';
   const on = f => Math.abs(f[1] - STEP) <= 1, down = f => f[1] <= 1, wide = p => Math.abs(p.r[0] - p.l[0]) > 60;
   if (l && r) {                                   // les deux pieds bougent ensemble : c'est un saut
@@ -3203,7 +3252,7 @@ function buildTrainSeq() {
     if (m.fixed) add(transition('back', side ? mirrorLane(m.startLane) : m.startLane), 'Déplacement');
     for (let rep = 0; rep < 2; rep++) m.beats.forEach((bt, j) => {
       const [al, ar] = ARMS[style](j % 4);
-      let p = { l: bt[0], r: bt[1], al, ar, turn: bt[2] || 0 };
+      let p = { l: bt[0], r: bt[1], al, ar, turn: bt[2] || 0, sq: bt[3] || 0 };
       if (side) p = mirror(p);
       SEQ.push({ pose: p, name: m.name, lvl: m.lvl, style, next: m.name, j, count: String(j + 1), side, rep });
     });
@@ -3497,7 +3546,7 @@ function idleArms(t) {
   return { l: G(-NX), r: G(NX), al, ar, turn: 0 };
 }
 const lp2 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2] || 0, b[2] || 0, k)];
-const blendPose = (a, b, k) => ({ l: lp2(a.l, b.l, k), r: lp2(a.r, b.r, k), al: lp2(a.al, b.al, k), ar: lp2(a.ar, b.ar, k), turn: (b.turn || 0) * k });
+const blendPose = (a, b, k) => ({ l: lp2(a.l, b.l, k), r: lp2(a.r, b.r, k), al: lp2(a.al, b.al, k), ar: lp2(a.ar, b.ar, k), turn: (b.turn || 0) * k, sq: (b.sq || 0) * k });
 
 const MSGS = {
   wait: ['Salut ! Choisis une musique et on s\'y met 💪', 'Prêt·e à transpirer ? Lance un morceau !',
@@ -3600,8 +3649,10 @@ function frame(now) {
 
   if (stage) {
     const marks = TRAIN.on && TRAIN.marks ? [footMark(seqAt(idx + 1).pose.l), footMark(seqAt(idx + 1).pose.r)] : null;
-    const hp = stage.render({ pose0: p0, pose1: p1, poseM: pM, pose2: p2, e: ease(frac), frac, b, dt, pulse, amt: S.amt, tsec: t, blink, lookX, talk, happy, marks });
-    updateBubble(hp, bAlpha, Math.floor((t - BUB.start) * 38));
+    try {                                         // une image ratée ne doit jamais figer l'animation
+      const hp = stage.render({ pose0: p0, pose1: p1, poseM: pM, pose2: p2, e: ease(frac), frac, b, dt, pulse, amt: S.amt, tsec: t, blink, lookX, talk, happy, marks });
+      updateBubble(hp, bAlpha, Math.floor((t - BUB.start) * 38));
+    } catch (err) { if (!frame.errLogged) { frame.errLogged = true; console.error(err); } }
   }
   try { drawNext(b); } catch (err) { console.error(err); NEXT.on = false; }
   requestAnimationFrame(frame);
@@ -3609,7 +3660,7 @@ function frame(now) {
 /* ── pas à venir, façon Just Dance : chaque pas est une carte (pictogramme + nom) qui glisse jusqu'à la ligne
    « maintenant » ; la carte en cours se remplit au fil des temps ── */
 const NEXT = { on: store.get('nextOn', true) !== false, cache: new Map(), seq: null, at: null, vis: false, W: 0, H: 0, dpr: 1 };
-const PICTO_BEAT = { jack: 0, plyo: 0, march: 0, mambo: 2, lunge2: 2, over: 4 };
+const PICTO_BEAT = { jack: 0, plyo: 0, march: 0, mambo: 2, lunge2: 2, over: 4, grape: 1, squat: 2, tapdown: 2, curl3: 1, kick3: 1 };
 const NEXT_COLS = ['#ff3d9a', '#27e1ff', '#ffd23d', '#7dff4d', '#c08bff', '#ff8a3d', '#5dfff0'];
 const moveCol = key => { let h = 7; for (const c of key || '') h = (h * 31 + c.charCodeAt(0)) >>> 0; return NEXT_COLS[h % NEXT_COLS.length]; };
 function seqBlocks() {
@@ -3636,7 +3687,7 @@ function picto(key, side, style, size, col) {
   }
   const m = MOVES[key], j = Math.min(PICTO_BEAT[key] ?? 1, m.beats.length - 1), bt = m.beats[j];
   const arms = (ARMS[style] || ARMS.hips)(j % 4);
-  let p = { l: bt[0], r: bt[1], al: arms[0], ar: arms[1], turn: bt[2] || 0 };
+  let p = { l: bt[0], r: bt[1], al: arms[0], ar: arms[1], turn: bt[2] || 0, sq: bt[3] || 0 };
   if (side) p = mirror(p);
   const SH = 24;                                   // hauteur du step dans le pictogramme
   const ft = f => {
@@ -3654,6 +3705,7 @@ function picto(key, side, style, size, col) {
   const L1 = 47, L2 = 47, HW = 9;
   let hy = sup + 92;
   F.forEach((f, i) => { const hxi = hx + (i ? HW : -HW), d2 = (f[0] - hxi) ** 2 + f[2] ** 2; hy = Math.min(hy, f[1] + 6 + Math.sqrt(Math.max(1, 92 * 92 - d2))); });
+  hy -= (p.sq || 0) * 1.1;
   const sub = (a, b2) => [a[0] - b2[0], a[1] - b2[1], a[2] - b2[2]], add = (a, b2, t = 1) => [a[0] + b2[0] * t, a[1] + b2[1] * t, a[2] + b2[2] * t];
   const len = a => Math.hypot(a[0], a[1], a[2]), dot = (a, b2) => a[0] * b2[0] + a[1] * b2[1] + a[2] * b2[2];
   const ik = (root, tgt, l1, l2, pole) => {
@@ -3672,7 +3724,7 @@ function picto(key, side, style, size, col) {
   const lean = clamp(hx * 0.06, -6, 6), neck = [hx + lean, hy + 50, 0];
   const armsP = [p.al, p.ar].map((a, i) => {
     const sd = i ? 1 : -1, sh = [neck[0] + sd * 17, neck[1] - 3, 0];
-    const tgt = [sh[0] + sd * a[0] * 0.8, sh[1] + a[1] * 0.8, 8];
+    const tgt = [sh[0] + sd * a[0] * 0.8, sh[1] + a[1] * 0.8, 8 + (a[2] || 0) * 0.8];
     const [el, hand] = ik(sh, tgt, 33, 33, [sd * 0.7, -1, -0.3]);
     return { sh, el, hand };
   });
@@ -4212,7 +4264,7 @@ function userData() {
   store.set('progress', PROG);
   return { v: 2, updated: Math.max(PROG.updated || 0, +store.get('localUpdated', 0)), look: LOOK, board: BOARD, variety, zone,
            moves: [...selected], train: { move: TRAIN.move, bpm: TRAIN.bpm, step: !!store.get('trStep', false), marks: TRAIN.marks },
-           vol: +$('#vol').value, nextOn: NEXT.on, ytMini: !!store.get('ytMini', false), tempos: TEMPOS, lb: LB.id ? { id: LB.id, cle: LB.cle, pseudo: LB.pseudo } : null, lastYT: store.get('lastYT', null), progress: PROG };
+           vol: +$('#vol').value, nextOn: NEXT.on, groove, ytMini: !!store.get('ytMini', false), tempos: TEMPOS, lb: LB.id ? { id: LB.id, cle: LB.cle, pseudo: LB.pseudo } : null, lastYT: store.get('lastYT', null), progress: PROG };
 }
 function mergeProgress(a, b) {
   const out = { danceSec: Math.max(a.danceSec || 0, b.danceSec || 0), days: [...new Set([...(a.days || []), ...(b.days || [])])].sort(), moves: {}, updated: Math.max(a.updated || 0, b.updated || 0),
@@ -4229,6 +4281,7 @@ function applyUserData(d) {
   try {
     if (d.look) { Object.keys(d.look).forEach(k => { if (k in DEFAULT_LOOK) LOOK[k] = d.look[k]; }); store.set('look3', LOOK); }
     if (d.board) { Object.assign(BOARD, d.board); applyBoard(); store.set('board', BOARD); }
+    if (typeof d.groove === 'number') { groove = clamp(d.groove, 0, 1); store.set('groove', groove); }
     if (typeof d.variety === 'number') { variety = clamp(d.variety, 0, 3); store.set('variety', variety); }
     if (d.zone && LANES_OF[d.zone]) { zone = d.zone; store.set('zone', zone); }
     if (Array.isArray(d.moves) && d.moves.length) { selected = new Set(d.moves.filter(k => MOVES[k])); store.set('moves2', [...selected]); }
@@ -4245,7 +4298,7 @@ function applyUserData(d) {
     if (d.tempos && typeof d.tempos === 'object') { Object.keys(d.tempos).forEach(k => { const a = d.tempos[k], b = TEMPOS[k]; if (a && a.b && (!b || (a.t || 0) > (b.t || 0))) TEMPOS[k] = a; }); store.set('tempos', TEMPOS); }
     if (d.lastYT && d.lastYT.id) { store.set('lastYT', d.lastYT); renderResume(); }
     if (!TRAIN.on) buildSeq();
-    renderLook(); renderBoard(); renderVariety(); renderZone(); renderChoreo(); renderTrain(); renderProgress();
+    renderLook(); renderBoard(); renderVariety(); renderGroove(); renderZone(); renderChoreo(); renderTrain(); renderProgress();
   } finally { CLOUD.applying = false; }
 }
 // à la connexion : on récupère la sauvegarde du compte ; la plus récente gagne, la progression est fusionnée
@@ -4852,7 +4905,7 @@ window.addEventListener('keydown', e => {
 });
 
 buildSeq(); renderZone(); renderVariety(); renderTrain(); renderChoreo(); renderLook(); renderProgress(); syncPlayBtn(); initStage();
-{ const SYNC_KEYS = new Set(['look3', 'board', 'variety', 'zone', 'moves2', 'trMove', 'trBpm', 'trStep', 'trMarks', 'vol', 'nextOn', 'ytMini', 'tempos', 'lastYT', 'progress']), raw = store.set;
+{ const SYNC_KEYS = new Set(['look3', 'board', 'variety', 'zone', 'moves2', 'trMove', 'trBpm', 'trStep', 'trMarks', 'vol', 'nextOn', 'groove', 'ytMini', 'tempos', 'lastYT', 'progress']), raw = store.set;
   store.set = (k, v) => { raw(k, v); if (SYNC_KEYS.has(k) && !(k === 'progress' && !PROG._sync)) cloudSaveSoon(); };
   setInterval(() => { if (GG.remember && PROG.updated > (CLOUD.lastProg || 0)) { CLOUD.lastProg = PROG.updated; store.set('progress', PROG); cloudSaveSoon(); } }, 60000);
   window.addEventListener('pagehide', () => store.set('progress', PROG)); }
