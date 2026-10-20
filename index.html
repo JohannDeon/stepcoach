@@ -131,6 +131,13 @@ button.primary{background:linear-gradient(135deg,var(--pink),var(--violet));bord
 .seg{display:flex;gap:6px;margin-bottom:10px}
 .seg button{flex:1;font-size:13px;padding:7px 8px;color:var(--mute)}
 .seg button.on{border-color:var(--cyan);color:var(--ink)}
+/* cartes à aperçu (scènes, steps) */
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.card{padding:0;border-radius:16px;overflow:hidden;text-align:left;display:grid;background:rgba(255,255,255,.05);border:1px solid var(--line)}
+.card .pv{aspect-ratio:16/10;display:grid;place-items:center;font-size:30px;text-shadow:0 2px 10px rgba(0,0,0,.35)}
+.card span{padding:8px 10px;font-size:13px;font-weight:600;line-height:1.25}
+.card.on{border-color:transparent;box-shadow:0 0 0 2px var(--pink),0 8px 24px rgba(255,61,154,.25)}
+.card:hover{background:rgba(255,255,255,.1)}
 .drawer form{display:flex;gap:8px}
 .drawer input[type=search],.drawer input[type=text],.drawer input[type=password]{flex:1;min-width:0;background:rgba(0,0,0,.28);border:1px solid var(--line);color:var(--ink);
   border-radius:12px;padding:10px 12px;font:inherit;outline:none;width:100%}
@@ -321,7 +328,7 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
       <nav class="nav glass">
         <button data-open="music" class="hint">🎵 <span>Musique</span></button>
         <button data-open="choreo">💃 <span>Pas</span></button>
-        <button data-open="look">🎨 <span>Personnage</span></button>
+        <button data-open="look">🎨 <span>Look</span></button>
         <button data-open="adv" title="Réglages">⚙</button>
       </nav>
     </header>
@@ -385,7 +392,7 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
         <div class="tabs">
           <button data-tab="music" class="on">Musique</button>
           <button data-tab="choreo">Pas</button>
-          <button data-tab="look">Personnage</button>
+          <button data-tab="look">Look</button>
           <button data-tab="adv" class="ico" title="Réglages" aria-label="Réglages">⚙</button>
           <button data-tab="rank" class="ico" title="Classement" aria-label="Classement">🏆</button>
         </div>
@@ -435,7 +442,6 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
             <p class="note" style="margin-top:8px">Le pas est montré lentement, côté droit puis côté gauche, avec un décompte, la consigne à chaque temps et un métronome.</p>
           </div>
           <div class="opt prog"><h4>📈 Ma progression</h4><div id="progBox"></div></div>
-          <div class="opt"><h4>Le step</h4><div id="boardBox"></div></div>
           <div class="opt"><h4>Position par rapport au step</h4><div class="chips" id="zoneChips" style="margin:0"></div></div>
           <div class="opt"><h4>Style</h4><div class="chips" id="grooveChips" style="margin:0"></div></div>
           <div class="opt"><h4>Pas à venir</h4>
@@ -454,11 +460,21 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
 
         <!-- ───────── Personnage ───────── -->
         <div id="tab-look" hidden>
-          <div id="lookBox"></div>
-          <div class="row">
-            <button id="lookRandom">🎲 Aléatoire</button>
-            <button id="lookReset">Réinitialiser</button>
+          <div class="seg" id="lookSeg">
+            <button data-l="perso" class="on">Personnage</button>
+            <button data-l="step">Step</button>
+            <button data-l="scene">Scène</button>
           </div>
+          <div id="look-perso">
+            <div id="lookBox"></div>
+            <div class="row">
+              <button id="lookRandom">🎲 Aléatoire</button>
+              <button id="lookReset">Réinitialiser</button>
+            </div>
+          </div>
+          <div id="look-step" hidden><div id="boardBox"></div></div>
+          <div id="look-scene" hidden><div class="cards" id="sceneBox"></div>
+            <p class="note">Chaque scène a ses couleurs et sa lumière. Le club néon change de couleurs toutes les 16 temps.</p></div>
         </div>
 
         <!-- ───────── Classement ───────── -->
@@ -664,6 +680,17 @@ const KN = [-22, STEP + 50, 0.6];          // genou levé : pied sous le genou, 
 const KICK = [-30, STEP + 38, 1.5], CURL = [-12, STEP + 64, -0.75], TAPS = [-14, STEP + 5, 0.15];
 
 // ── le step : taille réglable (en cm) et style ──
+// scènes (décors) au choix : [id, nom, emoji, aperçu CSS]
+const SCENES = [
+  ['club', 'Club néon', '🪩', 'radial-gradient(circle at 50% 35%,#ffe14d55,transparent 45%),linear-gradient(160deg,#2a0a5e,#120630 60%,#ff2d95aa)'],
+  ['sunset', 'Coucher de soleil rétro', '🌇', 'radial-gradient(circle at 50% 62%,#ffd76a 0 16%,transparent 17%),linear-gradient(180deg,#0b0120,#3a0b5e 45%,#e0407a 70%,#ff8a4c 78%,#14032b 79%)'],
+  ['studio', 'Studio blanc', '🤍', 'radial-gradient(circle at 20% 30%,#fff,transparent 40%),linear-gradient(180deg,#f7f5fb,#e6e2ee)'],
+  ['gym', 'Salle de danse', '🪞', 'linear-gradient(180deg,#efe6da 0 30%,#c4d0dc 30% 62%,#efe6da 62% 70%,#b07a4c 70%)'],
+  ['beach', 'Plage tropicale', '🏝️', 'radial-gradient(circle at 78% 22%,#fff7d6,transparent 18%),linear-gradient(180deg,#2f8fe8,#9fdcff 52%,#1a8fd0 53% 66%,#f0d6a2 67%)'],
+  ['space', 'Galaxie', '🪐', 'radial-gradient(circle at 28% 30%,#f0a35e 0 12%,transparent 13%),radial-gradient(circle at 70% 60%,#8c3cff66,transparent 40%),linear-gradient(180deg,#03020c,#0d0630)'],
+];
+let sceneId = store.get('scene', 'club');
+if (!SCENES.some(([v]) => v === sceneId)) sceneId = 'club';
 const BOARD_STYLES = [['neon', 'Néon'], ['classic', 'Classique'], ['wood', 'Bois'], ['glass', 'Verre lumineux'], ['white', 'Blanc pro']];
 const BOARD_COLS = ['auto', '#27e1ff', '#ff3d9a', '#ffd23d', '#7dff4d', '#b13bff', '#ff7a2f', '#ffffff'];
 const BOARD_DEF = { len: 144, dep: 59, hgt: 27, style: 'neon', color: 'auto' };
@@ -970,6 +997,21 @@ function renderBoard() {
   rs.onclick = () => set(Object.assign({}, BOARD_DEF)); box.appendChild(rs);
 }
 renderBoard();
+function renderScenes() {
+  const box = $('#sceneBox'); if (!box) return;
+  box.innerHTML = '';
+  SCENES.forEach(([v, label, emo, prev]) => {
+    const b = document.createElement('button'); b.className = 'card' + (sceneId === v ? ' on' : '');
+    b.innerHTML = `<div class="pv" style="background:${prev}">${emo}</div><span>${esc(label)}</span>`;
+    b.onclick = () => { sceneId = v; store.set('scene', v); renderScenes(); };
+    box.appendChild(b);
+  });
+}
+function showLook(part) {
+  $$('#lookSeg button').forEach(x => x.classList.toggle('on', x.dataset.l === part));
+  ['perso', 'step', 'scene'].forEach(n => { $('#look-' + n).hidden = n !== part; });
+  if (part === 'scene') renderScenes();
+}
 function renderZone() {
   const w = $('#zoneChips'); if (!w) return;
   w.innerHTML = '';
@@ -1210,7 +1252,7 @@ function buildStage(T, FX) {
   const camera = new T.PerspectiveCamera(30, 1.6, 20, 5000);
 
   // ── lumières ──
-  scene.add(new T.HemisphereLight('#c8d0ff', '#3a1a5c', 0.3));
+  const hemi = new T.HemisphereLight('#c8d0ff', '#3a1a5c', 0.3); scene.add(hemi);
   const key = new T.DirectionalLight('#ffffff', 1.35);
   key.position.set(140, 430, 330); key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0005; key.shadow.radius = 5;
@@ -1219,21 +1261,32 @@ function buildStage(T, FX) {
   const rimA = new T.PointLight('#ff2d95', 2.4, 0, 0); rimA.position.set(-280, 210, -200); scene.add(rimA);
   const rimB = new T.PointLight('#27e1ff', 2.4, 0, 0); rimB.position.set(280, 210, -200); scene.add(rimB);
 
-  // ── décor ──
+  // ── scènes au choix : chacune a son groupe d'objets, sa palette, ses lumières et son halo ──
+  const ENVS = {};
+  const ctex = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.anisotropy = 4; return t; };
+  const flat = o => new T.MeshBasicMaterial(Object.assign({ fog: false }, o));
+  const gradTex = stops => ctex(4, 512, (x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); stops.forEach(([q, c]) => g.addColorStop(q, c)); x.fillStyle = g; x.fillRect(0, 0, w, h); });
+  const glowTex = col => ctex(128, 128, x => { const g = x.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); });
+  const skyPlane = (stops, y0 = -120, h = 1150, z = -1900) => { const m = new T.Mesh(new T.PlaneGeometry(7600, h), flat({ map: gradTex(stops), toneMapped: false })); m.position.set(0, y0 + h / 2, z); return m; };
+  const floorOf = (mat, size = 4000) => { const f = new T.Mesh(new T.PlaneGeometry(size, size), mat); f.rotation.x = -Math.PI / 2; f.receiveShadow = true; return f; };
+  const glow = (col, size, add = true) => new T.Mesh(new T.PlaneGeometry(size, size), flat({ map: glowTex(col), transparent: true, depthWrite: false, blending: add ? T.AdditiveBlending : T.NormalBlending }));
+
+  // 1. club néon (scène d'origine : rayons, formes, égaliseur, couleurs qui changent toutes les 16 temps)
+  const clubG = new T.Group(); scene.add(clubG);
   const floorMat = new T.MeshStandardMaterial({ color: '#160b33', roughness: 0.3, metalness: 0.5 });
   const floor = new T.Mesh(new T.PlaneGeometry(4000, 4000), floorMat);
-  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; clubG.add(floor);
   const grid = new T.GridHelper(1800, 36, 0xffffff, 0xffffff);
-  grid.material.transparent = true; grid.material.opacity = 0.16; grid.position.y = 0.3; scene.add(grid);
+  grid.material.transparent = true; grid.material.opacity = 0.16; grid.position.y = 0.3; clubG.add(grid);
   const ringMat = new T.MeshBasicMaterial({ color: '#ffe14d' });
   const ring = new T.Mesh(new T.TorusGeometry(330, 1.5, 8, 180), ringMat);
-  ring.rotation.x = Math.PI / 2; ring.position.y = 1; scene.add(ring);
+  ring.rotation.x = Math.PI / 2; ring.position.y = 1; clubG.add(ring);
   const padMat = new T.MeshBasicMaterial({ color: '#ffe14d', transparent: true, opacity: 0.2, blending: T.AdditiveBlending, depthWrite: false });
   const pad = new T.Mesh(new T.CircleGeometry(190, 64), padMat);
-  pad.rotation.x = -Math.PI / 2; pad.position.y = 0.6; scene.add(pad);
+  pad.rotation.x = -Math.PI / 2; pad.position.y = 0.6; clubG.add(pad);
 
   // fond : rayons, formes, égaliseur
-  const back = new T.Group(); back.position.set(0, 170, -470); scene.add(back);
+  const back = new T.Group(); back.position.set(0, 170, -470); clubG.add(back);
   const rayMat = new T.MeshBasicMaterial({ color: '#ffe14d', transparent: true, opacity: 0.1, side: T.DoubleSide, blending: T.AdditiveBlending, depthWrite: false });
   const rays = new T.Group(); back.add(rays);
   for (let i = 0; i < 12; i++) {
@@ -1259,7 +1312,196 @@ function buildStage(T, FX) {
   for (let i = 0; i < NP; i++) { pp[i * 3] = (Math.random() - 0.5) * 900; pp[i * 3 + 1] = Math.random() * 420; pp[i * 3 + 2] = -260 + Math.random() * 420; pv[i] = 6 + Math.random() * 16; }
   const pgeo = new T.BufferGeometry(); pgeo.setAttribute('position', new T.BufferAttribute(pp, 3));
   const pmat = new T.PointsMaterial({ color: '#ffffff', size: 3.2, transparent: true, opacity: 0.75, blending: T.AdditiveBlending, depthWrite: false });
-  scene.add(new T.Points(pgeo, pmat));
+  clubG.add(new T.Points(pgeo, pmat));
+
+  ENVS.club = { g: clubG, cycle: true, rim: 'neon', bloom: [0.5, 0.93], hemi: ['#c8d0ff', '#3a1a5c', 0.3], key: 1.35, exp: 0.95,
+    update(P, c1, c2, c3, dim) {
+      const { b, pulse, amt, dt } = P;
+      ringMat.color.set(c3); padMat.color.set(c3); padMat.opacity = (0.08 + 0.22 * pulse) * dim;
+      rayMat.color.set(c3); rayMat.opacity = (0.035 + 0.06 * pulse) * dim;
+      shapeMat2.color.set(c2); barMat.color.set(c3);
+      grid.material.color.set(c3); pmat.color.set(c3);
+      floorMat.color.set(hexShade(c1, 0.32));
+      rays.rotation.z = b * 0.03;
+      shapes.forEach((m, n) => {
+        const sc = 1 + 0.15 * pulse; m.scale.set(sc, sc, sc);
+        m.rotation.z = b * 0.12 * (n % 2 ? -1 : 1); m.rotation.y = Math.sin(b * 0.3 + n) * 0.6;
+        m.position.y += Math.sin(P.tsec * 0.8 + n) * 0.05;
+      });
+      bars.forEach((m, n) => { const h = 6 + 70 * (0.25 + 0.75 * pulse) * (0.5 + 0.5 * Math.sin(n * 1.3 + b * 2.1 + n * n * 0.07)) * (0.4 + 0.6 * dim); m.scale.y = h; m.position.y = -170 + h / 2; });
+      for (let i = 0; i < NP; i++) { pp[i * 3 + 1] += pv[i] * dt * (0.4 + amt); if (pp[i * 3 + 1] > 440) pp[i * 3 + 1] = 0; }
+      pgeo.attributes.position.needsUpdate = true;
+    } };
+
+  const BUILD = {
+    // 2. coucher de soleil rétro (synthwave) : soleil rayé, montagnes, sol quadrillé qui défile en rythme
+    sunset() {
+      const g = new T.Group();
+      g.add(skyPlane([[0, '#0b0120'], [0.5, '#2d0a52'], [0.74, '#7a1a6e'], [0.86, '#e0407a'], [0.93, '#ff8a4c'], [1, '#ffc56b']]));
+      const sunTex = ctex(256, 256, x => {
+        const gr = x.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#fff27a'); gr.addColorStop(0.55, '#ff9a3d'); gr.addColorStop(1, '#ff2d95');
+        x.fillStyle = gr; x.beginPath(); x.arc(128, 128, 127, 0, Math.PI * 2); x.fill();
+        x.globalCompositeOperation = 'destination-out';
+        for (let i = 0; i < 8; i++) x.fillRect(0, 134 + i * 15, 256, 2 + i * 1.4);
+      });
+      const sun = new T.Mesh(new T.PlaneGeometry(500, 500), flat({ map: sunTex, transparent: true, depthWrite: false, toneMapped: false })); sun.position.set(0, 200, -1850); g.add(sun);
+      const halo = glow('rgba(255,70,140,.32)', 1150); halo.position.set(0, 200, -1880); g.add(halo);
+      const mount = (pts, z) => {
+        const sh = new T.Shape(); sh.moveTo(pts[0][0], -60); pts.forEach(([x, y]) => sh.lineTo(x, y)); sh.lineTo(pts[pts.length - 1][0], -60);
+        const m = new T.Mesh(new T.ShapeGeometry(sh), flat({ color: '#1a0634' })); m.position.z = z; g.add(m);
+        const l = new T.Line(new T.BufferGeometry().setFromPoints(pts.map(([x, y]) => new T.Vector3(x, y, 0))), new T.LineBasicMaterial({ color: '#ff3d9a', fog: false }));
+        l.position.z = z + 1; g.add(l);
+      };
+      mount([[-2700, 0], [-2200, 170], [-1900, 70], [-1520, 280], [-1180, 100], [-920, 200], [-640, 40], [-430, 0]], -1500);
+      mount([[430, 0], [700, 130], [960, 40], [1260, 250], [1560, 90], [1880, 210], [2250, 60], [2700, 0]], -1500);
+      g.add(floorOf(new T.MeshStandardMaterial({ color: '#14032b', roughness: 0.32, metalness: 0.5 })));
+      const grid = new T.GridHelper(4000, 100, 0xff3d9a, 0xff3d9a); grid.material.transparent = true; grid.material.opacity = 0.5; grid.position.y = 0.4; g.add(grid);
+      return { g, pal: ['#2a0845', '#ff3d9a', '#3de0ff'], bg: '#0b0120', fog: ['#2a0845', 900, 2700], rim: 'neon', bloom: [0.45, 0.96],
+               hemi: ['#ff9ad5', '#2a0845', 0.5], key: 1.15, exp: 0.95,
+               update(P) { grid.position.z = (P.b * 10) % 40; halo.material.opacity = 0.7 + 0.3 * P.pulse; } };
+    },
+    // 3. studio blanc : fond infini sans raccord, deux boîtes à lumière de photographe
+    studio() {
+      const g = new T.Group();
+      g.add(floorOf(new T.MeshStandardMaterial({ color: '#efecf4', roughness: 0.92 })));
+      const soft = [];
+      [-1, 1].forEach(sd => {
+        const sb = new T.Group();
+        const frame = new T.Mesh(new T.BoxGeometry(150, 210, 16), new T.MeshStandardMaterial({ color: '#2b2833', roughness: 0.5 }));
+        const panel = new T.Mesh(new T.PlaneGeometry(136, 196), new T.MeshBasicMaterial({ color: '#ffffff' })); panel.position.z = 8.2;
+        const pole = new T.Mesh(new T.CylinderGeometry(2.2, 2.2, 230, 10), new T.MeshStandardMaterial({ color: '#3a3742', metalness: 0.6, roughness: 0.4 })); pole.position.y = -150;
+        sb.add(frame, panel, pole); sb.position.set(sd * 470, 250, -360); sb.rotation.y = -sd * 0.5; g.add(sb); soft.push(panel);
+      });
+      return { g, pal: ['#ffffff', '#ff3d9a', '#8b5cff'], bg: '#f3f1f7', fog: ['#f3f1f7', 650, 2100], rim: 'soft', bloom: [0.1, 1.3],
+               hemi: ['#ffffff', '#d9d3e6', 1.15], key: 1.45, exp: 1.0, update() {} };
+    },
+    // 4. salle de danse : miroir, barre, parquet brillant, plante et enceinte
+    gym() {
+      const g = new T.Group();
+      const wall = ctex(1024, 256, (x, w, h) => {
+        x.fillStyle = '#efe6da'; x.fillRect(0, 0, w, h);
+        const top = 70, bot = 214;
+        const mg = x.createLinearGradient(0, top, 0, bot); mg.addColorStop(0, '#b4c4d4'); mg.addColorStop(0.6, '#8597ab'); mg.addColorStop(1, '#6d8096');
+        x.fillStyle = mg; x.fillRect(0, top, w, bot - top);
+        x.fillStyle = 'rgba(255,255,255,.28)';
+        for (let i = -1; i < 10; i++) { x.beginPath(); x.moveTo(i * 120, bot); x.lineTo(i * 120 + 40, bot); x.lineTo(i * 120 + 110, top); x.lineTo(i * 120 + 70, top); x.fill(); }
+        x.fillStyle = '#5d6470'; for (let i = 0; i <= 8; i++) x.fillRect(i * 128 - 2, top, 4, bot - top);
+        x.fillRect(0, top - 3, w, 3); x.fillRect(0, bot, w, 3);
+        x.fillStyle = '#fff6df'; x.fillRect(0, 18, w, 5);
+        x.fillStyle = '#d6cabb'; x.fillRect(0, h - 12, w, 12);
+      });
+      wall.wrapS = T.RepeatWrapping; wall.repeat.set(3, 1);
+      const wm = new T.Mesh(new T.PlaneGeometry(3600, 900), new T.MeshStandardMaterial({ map: wall, roughness: 0.8 })); wm.position.set(0, 450, -560); g.add(wm);
+      const wood = new T.MeshStandardMaterial({ color: '#c9a27a', roughness: 0.4 });
+      const barre = new T.Mesh(new T.CylinderGeometry(3.2, 3.2, 3400, 12), wood); barre.rotation.z = Math.PI / 2; barre.position.set(0, 112, -528); g.add(barre);
+      for (let x = -1600; x <= 1600; x += 400) { const br = new T.Mesh(new T.CylinderGeometry(1.6, 1.6, 32, 8), new T.MeshStandardMaterial({ color: '#8d8a86', metalness: 0.7, roughness: 0.3 })); br.rotation.x = Math.PI / 2; br.position.set(x, 112, -544); g.add(br); }
+      const planks = ctex(512, 512, (x, w, h) => {
+        for (let r = 0; r < 8; r++) {
+          const off = (r % 2) * 128;
+          for (let c = -1; c < 2; c++) {                       // lattes décalées d'une rangée à l'autre, sans trou
+            const t = Math.sin(r * 7.3 + c * 3.1) * 0.06;
+            x.fillStyle = `rgb(${190 + t * 300},${138 + t * 240},${88 + t * 160})`; x.fillRect(c * 256 + off, r * 64, 256, 64);
+            x.fillStyle = 'rgba(70,40,15,.45)'; x.fillRect(c * 256 + off, r * 64, 1.5, 64);
+          }
+          x.strokeStyle = 'rgba(90,55,25,.18)'; for (let k = 0; k < 6; k++) { x.beginPath(); for (let px = 0; px <= w; px += 16) x.lineTo(px, r * 64 + 8 + k * 9 + Math.sin(px * 0.03 + k + r) * 2); x.stroke(); }
+          x.fillStyle = 'rgba(70,40,15,.45)'; x.fillRect(0, r * 64, w, 1.5);
+        }
+      });
+      planks.wrapS = planks.wrapT = T.RepeatWrapping; planks.repeat.set(14, 14);
+      g.add(floorOf(new T.MeshStandardMaterial({ map: planks, roughness: 0.36, metalness: 0.05 })));
+      const pot = new T.Mesh(new T.CylinderGeometry(30, 24, 62, 20), new T.MeshStandardMaterial({ color: '#e7ddd0', roughness: 0.6 })); pot.position.set(-650, 31, -420); g.add(pot);
+      const leafM = new T.MeshStandardMaterial({ color: '#3f8f4a', roughness: 0.7 });
+      for (let i = 0; i < 9; i++) { const l = new T.Mesh(new T.SphereGeometry(26, 12, 8), leafM); const a = i / 9 * Math.PI * 2; l.scale.set(0.55, 1.7, 0.35); l.position.set(-650 + Math.cos(a) * 18, 100 + (i % 3) * 22, -420 + Math.sin(a) * 18); l.rotation.z = Math.cos(a) * 0.5; l.rotation.x = Math.sin(a) * 0.5; g.add(l); }
+      const spk = new T.Mesh(new T.BoxGeometry(70, 130, 56), new T.MeshStandardMaterial({ color: '#1f1e24', roughness: 0.5 })); spk.position.set(660, 65, -430); g.add(spk);
+      const cones = [];
+      [[96, 22], [40, 14]].forEach(([y, r]) => { const c = new T.Mesh(new T.CircleGeometry(r, 24), new T.MeshStandardMaterial({ color: '#3b3a44', roughness: 0.3, metalness: 0.4 })); c.position.set(660, y, -401.5); g.add(c); cones.push(c); });
+      return { g, pal: ['#efe6da', '#ff6b3d', '#2ec4b6'], bg: '#e9e1d6', fog: ['#e9e1d6', 1600, 3600], rim: 'soft', bloom: [0.14, 1.2],
+               hemi: ['#fff6e8', '#b9a48c', 1.0], key: 1.35, keyCol: '#fff1dc', exp: 1.0,
+               update(P) { cones.forEach(c => { const s = 1 + 0.08 * P.pulse; c.scale.set(s, s, 1); }); } };
+    },
+    // 5. plage tropicale : ciel, soleil, mer qui scintille, sable, palmiers, nuages
+    beach() {
+      const g = new T.Group();
+      g.add(skyPlane([[0, '#0a4cb0'], [0.5, '#2280d6'], [0.82, '#7fc2ec'], [0.95, '#d9eef0'], [1, '#d9eef0']]));
+      const sunG = glow('rgba(255,250,215,1)', 800); sunG.position.set(430, 430, -1880); g.add(sunG);
+      const sun = new T.Mesh(new T.CircleGeometry(62, 48), flat({ color: '#fffbe8', toneMapped: false })); sun.position.set(430, 430, -1870); g.add(sun);
+      const cloudTex = ctex(256, 128, x => { x.fillStyle = '#fff'; [[60, 80, 40], [110, 60, 52], [170, 78, 42], [140, 90, 40], [90, 92, 36]].forEach(([cx, cy, r]) => { const gr = x.createRadialGradient(cx, cy, 0, cx, cy, r); gr.addColorStop(0, 'rgba(255,255,255,.95)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 256, 128); }); });
+      const clouds = [[-900, 640, 1.2], [-250, 760, 0.9], [300, 690, 1.1], [1100, 760, 1.3], [-1500, 720, 1]].map(([x, y, k]) => { const c = new T.Mesh(new T.PlaneGeometry(420 * k, 210 * k), flat({ map: cloudTex, transparent: true, depthWrite: false })); c.position.set(x, y, -1750); g.add(c); return c; });
+      const waveTex = ctex(256, 64, (x, w, h) => { x.fillStyle = '#0d6aa8'; x.fillRect(0, 0, w, h); x.strokeStyle = 'rgba(255,255,255,.3)'; x.lineWidth = 2; for (let i = 0; i < 6; i++) { x.beginPath(); for (let px = 0; px <= w; px += 8) x.lineTo(px, 6 + i * 11 + Math.sin(px * 0.06 + i * 1.7) * 2); x.stroke(); } });
+      waveTex.wrapS = waveTex.wrapT = T.RepeatWrapping; waveTex.repeat.set(30, 6);
+      const sea = new T.Mesh(new T.PlaneGeometry(7600, 1400), new T.MeshStandardMaterial({ map: waveTex, roughness: 0.22, metalness: 0.1 }));
+      sea.rotation.x = -Math.PI / 2; sea.position.set(0, 0.4, -1300); g.add(sea);
+      const foam = new T.Mesh(new T.PlaneGeometry(7600, 16), new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.85 })); foam.rotation.x = -Math.PI / 2; foam.position.set(0, 0.7, -602); g.add(foam);
+      const sandTex = ctex(256, 256, (x, w, h) => { x.fillStyle = '#efd5a1'; x.fillRect(0, 0, w, h); for (let i = 0; i < 1400; i++) { x.fillStyle = Math.random() < 0.5 ? 'rgba(160,120,60,.18)' : 'rgba(255,255,255,.25)'; x.fillRect(Math.random() * w, Math.random() * h, 2, 2); } });
+      sandTex.wrapS = sandTex.wrapT = T.RepeatWrapping; sandTex.repeat.set(10, 4);
+      const sand = new T.Mesh(new T.PlaneGeometry(7600, 2600), new T.MeshStandardMaterial({ map: sandTex, roughness: 0.95 })); sand.rotation.x = -Math.PI / 2; sand.position.z = 700; sand.receiveShadow = true; g.add(sand);
+      const leafShape = new T.Shape(); leafShape.moveTo(0, 0); leafShape.quadraticCurveTo(28, 70, 0, 175); leafShape.quadraticCurveTo(-28, 70, 0, 0);
+      const palm = (x, z, lean, sc) => {
+        const p = new T.Group();
+        const curve = new T.CatmullRomCurve3([new T.Vector3(0, 0, 0), new T.Vector3(lean * 25, 120, 0), new T.Vector3(lean * 70, 240, 0), new T.Vector3(lean * 120, 330, 0)]);
+        const trunk = new T.Mesh(new T.TubeGeometry(curve, 24, 9, 8), new T.MeshStandardMaterial({ color: '#8a5a32', roughness: 0.9 })); trunk.castShadow = true; p.add(trunk);
+        const top = curve.getPoint(1), lm = new T.MeshStandardMaterial({ color: '#2f9e44', roughness: 0.7, side: T.DoubleSide });
+        for (let i = 0; i < 8; i++) {
+          const l = new T.Mesh(new T.ShapeGeometry(leafShape), lm), a = i / 8 * Math.PI * 2;
+          const pv = new T.Group(); pv.position.copy(top); pv.rotation.y = a; l.rotation.x = Math.PI / 2 - 0.25 - (i % 2) * 0.25; pv.add(l); p.add(pv);
+          l.rotation.z = 0; l.castShadow = true;
+        }
+        p.position.set(x, 0, z); p.scale.setScalar(sc); g.add(p); return p;
+      };
+      const palms = [palm(-470, -520, 1, 1.1), palm(-700, -700, 0.6, 0.95), palm(500, -540, -1, 1.15)];
+      return { g, pal: ['#cfeefe', '#ff7a59', '#00c2d1'], bg: '#2f8fe8', fog: ['#cfeefe', 1700, 3900], rim: 'soft', bloom: [0.16, 1.15],
+               hemi: ['#cfeaff', '#e8cf9a', 1.05], key: 1.5, keyCol: '#fff4e0', exp: 1.0,
+               update(P) {
+                 waveTex.offset.y = (P.tsec * 0.05) % 1; foam.position.z = -602 + Math.sin(P.tsec * 0.9) * 10;
+                 clouds.forEach((c, i) => { c.position.x += P.dt * (6 + i * 2); if (c.position.x > 2200) c.position.x = -2200; });
+                 palms.forEach((p, i) => { p.rotation.z = Math.sin(P.tsec * 0.8 + i) * 0.015; });
+               } };
+    },
+    // 6. galaxie : étoiles, nébuleuses, planète à anneaux, plateforme lumineuse
+    space() {
+      const g = new T.Group();
+      const NS = 1800, sp = new Float32Array(NS * 3);
+      for (let i = 0; i < NS; i++) { const th = Math.random() * Math.PI * 2, ph = Math.acos(Math.random() * 1.4 - 0.4), r = 2600; sp[i * 3] = r * Math.sin(ph) * Math.cos(th); sp[i * 3 + 1] = r * Math.cos(ph) * 0.9 + 200; sp[i * 3 + 2] = -Math.abs(r * Math.sin(ph) * Math.sin(th)) - 300; }
+      const sg = new T.BufferGeometry(); sg.setAttribute('position', new T.BufferAttribute(sp, 3));
+      const smat = new T.PointsMaterial({ color: '#ffffff', size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0.9, fog: false, depthWrite: false });
+      g.add(new T.Points(sg, smat));
+      const nebs = [['rgba(140,60,255,.3)', -700, 500, 1700], ['rgba(39,225,255,.18)', 650, 300, 1500], ['rgba(255,61,154,.18)', 100, 700, 1300]].map(([c, x, y, s]) => { const n = glow(c, s); n.position.set(x, y, -2000); g.add(n); return n; });
+      const band = ctex(256, 128, (x, w, h) => { const cols = ['#f0a35e', '#d97a4a', '#f6c98a', '#b05c3c', '#f0b070', '#e08a56', '#f9d9a8']; for (let i = 0; i < 16; i++) { x.fillStyle = cols[(i * 5) % cols.length]; x.fillRect(0, i * 8, w, 8 + Math.sin(i) * 3); } });
+      const planet = new T.Mesh(new T.SphereGeometry(230, 48, 32), new T.MeshStandardMaterial({ map: band, roughness: 0.8, emissive: new T.Color('#3a1a10'), fog: false }));
+      planet.position.set(-600, 430, -1600); g.add(planet);
+      const ringTex = ctex(256, 256, x => { for (let r = 128; r > 70; r -= 3) { x.strokeStyle = `rgba(240,${180 + (r % 30)},${140 + (r % 40)},${0.25 + (r % 9) * 0.06})`; x.lineWidth = 2; x.beginPath(); x.arc(128, 128, r - 1, 0, Math.PI * 2); x.stroke(); } });
+      const rings = new T.Mesh(new T.RingGeometry(290, 450, 96), flat({ map: ringTex, transparent: true, side: T.DoubleSide, depthWrite: false }));
+      rings.position.copy(planet.position); rings.rotation.set(Math.PI / 2.35, 0.25, 0); g.add(rings);
+      const moon = new T.Mesh(new T.SphereGeometry(55, 32, 20), new T.MeshStandardMaterial({ color: '#b9b6cc', roughness: 1, fog: false })); moon.position.set(820, 330, -1450); g.add(moon);
+      g.add(floorOf(new T.MeshStandardMaterial({ color: '#07061a', roughness: 0.28, metalness: 0.85 })));
+      const halo = [];
+      [[230, '#27e1ff'], [310, '#b13bff'], [390, '#27e1ff']].forEach(([r, c], i) => { const t = new T.Mesh(new T.TorusGeometry(r, 1.4, 6, 160), new T.MeshBasicMaterial({ color: c })); t.rotation.x = Math.PI / 2; t.position.y = 0.8 + i * 0.2; g.add(t); halo.push(t); });
+      const padG = glow('rgba(80,140,255,.55)', 820); padG.rotation.x = -Math.PI / 2; padG.position.y = 0.5; padG.material.fog = true; g.add(padG);
+      return { g, pal: ['#03020c', '#b13bff', '#27e1ff'], bg: '#03020c', fog: ['#03020c', 1300, 3300], rim: 'neon', bloom: [0.55, 0.92],
+               hemi: ['#9fa8ff', '#140a2a', 0.38], key: 1.2, exp: 0.95,
+               update(P) {
+                 smat.opacity = 0.75 + 0.2 * Math.sin(P.tsec * 2.3);
+                 planet.rotation.y += P.dt * 0.03; rings.rotation.z += P.dt * 0.01;
+                 halo.forEach((t, i) => { t.rotation.z = P.b * 0.05 * (i % 2 ? -1 : 1); const s = 1 + 0.03 * P.pulse; t.scale.set(s, s, 1); });
+                 padG.material.opacity = 0.6 + 0.4 * P.pulse; nebs.forEach((n, i) => { n.material.opacity = 0.8 + 0.2 * Math.sin(P.tsec * 0.4 + i * 2); });
+               } };
+    },
+  };
+  // scène courante (construite à la première utilisation)
+  let envId = null, env = null;
+  function useEnv(id) {
+    if (id === envId) return env;
+    if (!ENVS[id]) { try { const e = BUILD[id](); scene.add(e.g); ENVS[id] = e; } catch (err) { console.error(err); id = 'club'; } }
+    Object.entries(ENVS).forEach(([k, e]) => { e.g.visible = k === id; });
+    envId = id; env = ENVS[id];
+    hemi.color.set(env.hemi[0]); hemi.groundColor.set(env.hemi[1]); hemi.intensity = env.hemi[2];
+    key.intensity = env.key; key.color.set(env.keyCol || '#ffffff');
+    renderer.toneMappingExposure = env.exp || 0.95;
+    if (env.fog) { scene.fog.near = env.fog[1]; scene.fog.far = env.fog[2]; } else { scene.fog.near = 1100; scene.fog.far = 2600; }
+    // les matériaux reprennent la lumière d'ambiance (reflets doux)
+    env.g.traverse(o => { const ms = Array.isArray(o.material) ? o.material : o.material ? [o.material] : []; ms.forEach(m => { if (m.isMeshStandardMaterial && m.envMapIntensity === 1) m.envMapIntensity = 0.35; }); });
+    return env;
+  }
 
   // ── le step : plateau + deux pieds, reconstruit selon la taille et le style choisis ──
   const board = new T.Group(); scene.add(board);
@@ -3025,36 +3267,28 @@ function buildStage(T, FX) {
     if (!anime) anime = buildAnime();
     const { b, pulse, amt, dt } = P;
 
-    // palette (change toutes les 16 temps)
-    const k = Math.max(0, b) / 16, fi = Math.floor(k), A = SCHEMES[fi % SCHEMES.length], B = SCHEMES[(fi + 1) % SCHEMES.length];
-    const tt = clamp((k - fi - 0.88) / 0.12, 0, 1);
-    const c1 = mixHex(A[0], B[0], tt), c2 = mixHex(A[1], B[1], tt), c3 = mixHex(A[2], B[2], tt);
+    // scène choisie ; palette : celle de la scène, ou qui change toutes les 16 temps (club)
+    const E = useEnv(sceneId);
+    let c1, c2, c3;
+    if (E.cycle) {
+      const k = Math.max(0, b) / 16, fi = Math.floor(k), A = SCHEMES[fi % SCHEMES.length], B = SCHEMES[(fi + 1) % SCHEMES.length];
+      const tt = clamp((k - fi - 0.88) / 0.12, 0, 1);
+      c1 = mixHex(A[0], B[0], tt); c2 = mixHex(A[1], B[1], tt); c3 = mixHex(A[2], B[2], tt);
+    } else [c1, c2, c3] = E.pal;
     const dim = 0.45 + 0.55 * amt;
-    scene.background.set(hexShade(c1, 0.5 * dim)); scene.fog.color.set(hexShade(c1, 0.5 * dim));
-    rimA.color.set(c2); rimB.color.set(c3); rimA.intensity = (1.6 + 2.4 * pulse) * dim; rimB.intensity = (1.6 + 2.4 * pulse) * dim;
-    ringMat.color.set(c3); padMat.color.set(c3); padMat.opacity = (0.08 + 0.22 * pulse) * dim;
-    rayMat.color.set(c3); rayMat.opacity = (0.035 + 0.06 * pulse) * dim;
-    shapeMat2.color.set(c2); barMat.color.set(c3);
+    if (E.cycle) { scene.background.set(hexShade(c1, 0.5 * dim)); scene.fog.color.set(hexShade(c1, 0.5 * dim)); }
+    else { scene.background.set(E.bg); scene.fog.color.set(E.fog[0]); }
+    rimA.color.set(c2); rimB.color.set(c3);
+    const rimI = E.rim === 'soft' ? (0.35 + 0.7 * pulse) * dim : (1.6 + 2.4 * pulse) * dim;
+    rimA.intensity = rimI; rimB.intensity = rimI;
+    E.update(P, c1, c2, c3, dim);
     const bk = JSON.stringify(BOARD); if (bk !== boardKey) { boardKey = bk; buildBoard(); }
     neonMat.color.set(BOARD.color === 'auto' ? c3 : BOARD.color);
     if (glassMat) { glassMat.emissive.set(BOARD.color === 'auto' ? c2 : BOARD.color); glassMat.emissiveIntensity = (0.3 + 0.8 * pulse) * dim; }
-    grid.material.color.set(c3); pmat.color.set(c3);
-    floorMat.color.set(hexShade(c1, 0.32));
-    rays.rotation.z = b * 0.03;
-    shapes.forEach((m, n) => {
-      const sc = 1 + 0.15 * pulse; m.scale.set(sc, sc, sc);
-      m.rotation.z = b * 0.12 * (n % 2 ? -1 : 1); m.rotation.y = Math.sin(b * 0.3 + n) * 0.6;
-      m.position.y += Math.sin(P.tsec * 0.8 + n) * 0.05;
-    });
-    bars.forEach((m, n) => { const h = 6 + 70 * (0.25 + 0.75 * pulse) * (0.5 + 0.5 * Math.sin(n * 1.3 + b * 2.1 + n * n * 0.07)) * (0.4 + 0.6 * dim); m.scale.y = h; m.position.y = -170 + h / 2; });
-    for (let i = 0; i < NP; i++) {
-      pp[i * 3 + 1] += pv[i] * dt * (0.4 + amt); if (pp[i * 3 + 1] > 440) pp[i * 3 + 1] = 0;
-    }
-    pgeo.attributes.position.needsUpdate = true;
 
     // personnage : modèle 3D réaliste (squelette) si chargé et demandé, sinon personnage manga dessiné
-    bloom.strength = !usePro ? 0.5 : LOOK.render === 'sil' ? 0.3 + 0.8 * LOOK.neonK : LOOK.render === 'neon' ? 0.85 * (0.4 + 1.1 * LOOK.neonK) : LOOK.render === 'toon' ? 0.2 : 0.5;
-    bloom.threshold = usePro && LOOK.render === 'neon' ? 0.78 : 0.93;
+    bloom.strength = !usePro ? E.bloom[0] : LOOK.render === 'sil' ? 0.3 + 0.8 * LOOK.neonK : LOOK.render === 'neon' ? 0.85 * (0.4 + 1.1 * LOOK.neonK) : LOOK.render === 'toon' ? 0.2 : E.bloom[0];
+    bloom.threshold = usePro && LOOK.render === 'neon' ? 0.78 : E.bloom[1];
     anime.group.visible = !usePro;
     if (proRig) { proRig.group.visible = usePro; if (usePro) proRig.setMode(LOOK.render); }
     const active = usePro ? proRig : anime;
@@ -4264,7 +4498,7 @@ function userData() {
   store.set('progress', PROG);
   return { v: 2, updated: Math.max(PROG.updated || 0, +store.get('localUpdated', 0)), look: LOOK, board: BOARD, variety, zone,
            moves: [...selected], train: { move: TRAIN.move, bpm: TRAIN.bpm, step: !!store.get('trStep', false), marks: TRAIN.marks },
-           vol: +$('#vol').value, nextOn: NEXT.on, groove, ytMini: !!store.get('ytMini', false), tempos: TEMPOS, lb: LB.id ? { id: LB.id, cle: LB.cle, pseudo: LB.pseudo } : null, lastYT: store.get('lastYT', null), progress: PROG };
+           vol: +$('#vol').value, nextOn: NEXT.on, groove, scene: sceneId, ytMini: !!store.get('ytMini', false), tempos: TEMPOS, lb: LB.id ? { id: LB.id, cle: LB.cle, pseudo: LB.pseudo } : null, lastYT: store.get('lastYT', null), progress: PROG };
 }
 function mergeProgress(a, b) {
   const out = { danceSec: Math.max(a.danceSec || 0, b.danceSec || 0), days: [...new Set([...(a.days || []), ...(b.days || [])])].sort(), moves: {}, updated: Math.max(a.updated || 0, b.updated || 0),
@@ -4281,6 +4515,7 @@ function applyUserData(d) {
   try {
     if (d.look) { Object.keys(d.look).forEach(k => { if (k in DEFAULT_LOOK) LOOK[k] = d.look[k]; }); store.set('look3', LOOK); }
     if (d.board) { Object.assign(BOARD, d.board); applyBoard(); store.set('board', BOARD); }
+    if (typeof d.scene === 'string' && SCENES.some(([v]) => v === d.scene)) { sceneId = d.scene; store.set('scene', sceneId); renderScenes(); }
     if (typeof d.groove === 'number') { groove = clamp(d.groove, 0, 1); store.set('groove', groove); }
     if (typeof d.variety === 'number') { variety = clamp(d.variety, 0, 3); store.set('variety', variety); }
     if (d.zone && LANES_OF[d.zone]) { zone = d.zone; store.set('zone', zone); }
@@ -4633,8 +4868,8 @@ $$('.nav button[data-open]').forEach(b => b.onclick = () => {
   if (drawerEl.classList.contains('open') && b.classList.contains('on')) closeDrawer(); else openDrawer(t);
 });
 $('#drawerClose').onclick = closeDrawer;
-$$('.seg button').forEach(b => b.onclick = () => {
-  $$('.seg button').forEach(x => x.classList.toggle('on', x === b));
+$$('#tab-music .seg button').forEach(b => b.onclick = () => {
+  $$('#tab-music .seg button').forEach(x => x.classList.toggle('on', x === b));
   $('#src-yt').hidden = b.dataset.src !== 'yt';
   $('#src-it').hidden = b.dataset.src !== 'it';
 });
@@ -4904,13 +5139,14 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyT') doTap();
 });
 
-buildSeq(); renderZone(); renderVariety(); renderTrain(); renderChoreo(); renderLook(); renderProgress(); syncPlayBtn(); initStage();
-{ const SYNC_KEYS = new Set(['look3', 'board', 'variety', 'zone', 'moves2', 'trMove', 'trBpm', 'trStep', 'trMarks', 'vol', 'nextOn', 'groove', 'ytMini', 'tempos', 'lastYT', 'progress']), raw = store.set;
+$$('#lookSeg button').forEach(b => b.onclick = () => showLook(b.dataset.l));
+buildSeq(); renderZone(); renderVariety(); renderGroove(); renderScenes(); renderTrain(); renderChoreo(); renderLook(); renderProgress(); syncPlayBtn(); initStage();
+{ const SYNC_KEYS = new Set(['look3', 'board', 'variety', 'zone', 'moves2', 'trMove', 'trBpm', 'trStep', 'trMarks', 'vol', 'nextOn', 'groove', 'scene', 'ytMini', 'tempos', 'lastYT', 'progress']), raw = store.set;
   store.set = (k, v) => { raw(k, v); if (SYNC_KEYS.has(k) && !(k === 'progress' && !PROG._sync)) cloudSaveSoon(); };
   setInterval(() => { if (GG.remember && PROG.updated > (CLOUD.lastProg || 0)) { CLOUD.lastProg = PROG.updated; store.set('progress', PROG); cloudSaveSoon(); } }, 60000);
   window.addEventListener('pagehide', () => store.set('progress', PROG)); }
 requestAnimationFrame(frame);
-window.__step = { S, Y, LIVE, seqAt, ease, TRAIN, startTraining, stopTraining, poseCue, GG, showMyPlaylists, ytSearch, PROG, cloudLoad, cloudSave, CLOUD, restoreGoogle, TEMPOS, LB, CFG, askContinue, SEQLEN: () => SEQ.length, startLive, stopLive, detectTempo, foldBpm, cleanTitle, parseYT, ytSearch, selected: () => selected, LOOK, hasKey: () => !!CFG.key };
+window.__step = { setScene: id => { sceneId = id; renderScenes(); }, S, Y, LIVE, seqAt, ease, TRAIN, startTraining, stopTraining, poseCue, GG, showMyPlaylists, ytSearch, PROG, cloudLoad, cloudSave, CLOUD, restoreGoogle, TEMPOS, LB, CFG, askContinue, SEQLEN: () => SEQ.length, startLive, stopLive, detectTempo, foldBpm, cleanTitle, parseYT, ytSearch, selected: () => selected, LOOK, hasKey: () => !!CFG.key };
 })();
 </script>
 </body>
