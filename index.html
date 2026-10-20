@@ -34,6 +34,9 @@
 <meta name="twitter:description" content="Cours de step gratuit avec une prof virtuelle : choisis ta musique, le tempo est détecté et elle danse en rythme. 21 pas et un mode entraînement.">
 <meta name="twitter:image" content="https://step.deonstudio.fr/og-image.jpg">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <link rel="preconnect" href="https://www.youtube.com">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "StepCoach", "alternateName": "StepCoach – prof de step virtuelle", "url": "https://step.deonstudio.fr/", "description": "Cours de step gratuit avec une prof virtuelle : choisis ta musique, le tempo est détecté et elle danse en rythme. 21 pas et un mode entraînement.", "inLanguage": "fr", "applicationCategory": "HealthApplication", "applicationSubCategory": "Fitness – step aérobic", "operatingSystem": "Web (navigateur)", "browserRequirements": "Navigateur récent avec WebGL", "image": "https://step.deonstudio.fr/og-image.jpg", "screenshot": "https://step.deonstudio.fr/og-image.jpg", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}, "isAccessibleForFree": true, "featureList": ["Recherche de musique sur YouTube et extraits iTunes", "Détection automatique du tempo (BPM)", "Prof virtuelle style manga qui danse en rythme", "21 pas de step classés par niveau", "Mode entraînement : décompte, consignes et empreintes de pas", "Personnage, tenue et step personnalisables", "Progression et sauvegarde sur le compte Google"], "creator": {"@type": "Organization", "name": "DEON Studio"}}</script>
 <style>
@@ -299,6 +302,58 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
   .dock{gap:10px;padding:8px 10px}
   .playbtn{width:46px;height:46px}
 }
+
+/* ═══════════ thème 2026 : plus sobre, plus lisible ═══════════ */
+:root{--panel:rgba(14,9,32,.66);--line:rgba(255,255,255,.1);--ink:#f7f4ff;--mute:#a79fc9;--grad:linear-gradient(135deg,#ff3d9a,#8b5cff)}
+body{font-family:"Plus Jakarta Sans",Inter,"Segoe UI",system-ui,sans-serif;letter-spacing:-.005em}
+.glass{background:var(--panel);border:1px solid var(--line);border-radius:22px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 18px 50px rgba(0,0,0,.35);backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4)}
+button{border-radius:12px;font-weight:600}
+button.primary{background:var(--grad);box-shadow:0 8px 22px rgba(255,61,154,.28)}
+.logo{font-weight:800;letter-spacing:-.6px}
+.nav{padding:4px;gap:2px}
+.nav button{font-weight:600;padding:8px 14px}
+.nav button.on{background:var(--grad);box-shadow:0 6px 18px rgba(255,61,154,.3)}
+.badge{border-radius:16px;padding:10px 14px}
+.app.nexton .badge{display:none}                       /* la bande des pas à venir suffit pendant la danse */
+.dock{border-radius:26px;padding:10px 12px 10px 10px}
+.playbtn{background:var(--grad)}
+.bpmchip{border-radius:16px;background:rgba(255,255,255,.06);border:1px solid var(--line)}
+/* panneau : en-tête et onglets */
+.drawer{border-radius:24px}
+.dhead{padding:12px 12px 6px}
+.tabs{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:16px}
+.tabs button{border-radius:12px;padding:9px 2px}
+.tabs button.on{background:var(--grad);box-shadow:0 4px 14px rgba(255,61,154,.25)}
+.dbody{padding:10px 14px 22px}
+.seg{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:14px;padding:4px;gap:4px}
+.seg button{border:0;background:transparent;border-radius:10px;font-weight:600}
+.seg button.on{background:rgba(255,255,255,.12);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.chips button{border-radius:999px}
+.chips button.on{border-color:transparent;background:var(--grad);color:#fff}
+.drawer input[type=search],.drawer input[type=text]{border-radius:14px;background:rgba(255,255,255,.06)}
+.res{border-radius:16px;border:1px solid transparent}
+.res:hover{border-color:var(--line)}
+.opt h4{font-size:11.5px;letter-spacing:.9px}
+/* sections repliables */
+details.acc{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:18px;margin:0 0 10px;padding:0;overflow:hidden}
+details.acc>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:13px 16px;font-size:14.5px;font-weight:700;color:var(--ink)}
+details.acc>summary::-webkit-details-marker{display:none}
+details.acc>summary small{color:var(--mute);font-weight:500;font-size:12px;margin-left:auto;text-align:right}
+details.acc>summary::after{content:'';flex:none;width:7px;height:7px;border-right:2px solid var(--mute);border-bottom:2px solid var(--mute);transform:rotate(45deg);margin:-3px 2px 0 6px;transition:transform .2s}
+details.acc[open]>summary::after{transform:rotate(-135deg);margin-top:3px}
+details.acc>summary:not(:has(small))::after{margin-left:auto}
+details.acc>summary:hover{background:rgba(255,255,255,.04)}
+.acc-b{padding:2px 16px 16px}
+.acc-b>.opt:last-child{margin-bottom:0}
+.train{background:none;border:0;padding:0}
+@media (max-width:640px){
+  /* menu en feuille qui monte du bas, plus facile au pouce */
+  .drawer{top:auto;left:0;right:0;bottom:0;width:auto;height:min(80vh,660px);border-radius:24px 24px 0 0;transform:translateY(105%)}
+  .drawer.open{transform:none}
+  .drawer::before{content:'';position:absolute;top:7px;left:50%;width:42px;height:5px;margin-left:-21px;border-radius:9px;background:rgba(255,255,255,.25)}
+  .dhead{padding-top:18px}
+}
 </style>
 </head>
 <body>
@@ -437,7 +492,8 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
 
         <!-- ───────── Pas ───────── -->
         <div id="tab-choreo" hidden>
-          <div class="opt train"><h4>🎓 Mode entraînement</h4>
+          <details class="acc" id="acc-train" open><summary>🎓 Entraînement <small>apprendre un pas</small></summary><div class="acc-b">
+          <div class="opt train">
             <select id="trMove" aria-label="Pas à apprendre"></select>
             <div class="chips" id="trSpeed" style="margin:2px 0 4px"></div>
             <label class="chk"><input type="checkbox" id="trStep"> Pas à pas : elle attend que tu avances (bouton ou barre d'espace)</label>
@@ -445,14 +501,18 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
             <button class="primary" id="trGo" style="width:100%;margin-top:4px">▶ Lancer l'entraînement</button>
             <p class="note" style="margin-top:8px">Le pas est montré lentement, côté droit puis côté gauche, avec un décompte, la consigne à chaque temps et un métronome.</p>
           </div>
-          <div class="opt prog"><h4>📈 Ma progression</h4><div id="progBox"></div></div>
-          <div class="opt"><h4>Position par rapport au step</h4><div class="chips" id="zoneChips" style="margin:0"></div></div>
+          </div></details>
+          <details class="acc" id="acc-prog"><summary>📈 Ma progression</summary><div class="acc-b"><div class="opt prog"><div id="progBox"></div></div></div></details>
+          <details class="acc" id="acc-opts"><summary>🎛️ Options de la danse <small>style, variation, place</small></summary><div class="acc-b">
           <div class="opt"><h4>Style</h4><div class="chips" id="grooveChips" style="margin:0"></div></div>
+          <div class="opt"><h4>Variation des pas</h4><div class="chips" id="varChips" style="margin:0"></div><p class="note" id="varDesc" style="margin:6px 0 0"></p></div>
+          <div class="opt"><h4>Position par rapport au step</h4><div class="chips" id="zoneChips" style="margin:0"></div></div>
           <div class="opt"><h4>Pas à venir</h4>
             <label class="chk" style="margin:0"><input type="checkbox" id="nextOn"> Afficher les prochains pas en images (comme dans Just Dance)</label>
           </div>
-          <div class="opt"><h4>Variation des pas</h4><div class="chips" id="varChips" style="margin:0"></div><p class="note" id="varDesc" style="margin:6px 0 0"></p></div>
-          <div class="row">
+          </div></details>
+          <details class="acc" id="acc-moves" open><summary>✅ Pas de la chorégraphie</summary><div class="acc-b">
+          <div class="chips" style="margin-top:0">
             <button data-preset="1">Débutant</button>
             <button data-preset="2">Jusqu'à intermédiaire</button>
             <button data-preset="3">Tout</button>
@@ -460,6 +520,7 @@ input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-rad
           <div id="choreoList"></div>
           <div class="cycle" id="cycle"></div>
           <p class="note">Coche les pas à enchaîner (chacun est fait côté droit puis côté gauche, avec des bras différents à chaque tour). « Voir » isole un seul pas.</p>
+          </div></details>
         </div>
 
         <!-- ───────── Personnage ───────── -->
@@ -1107,9 +1168,23 @@ const toHex = a => '#' + a.map(v => clamp(Math.round(v), 0, 255).toString(16).pa
 const hexShade = (h, f) => toHex(toRgb(h).map(v => v * f));
 const tint = (h, k) => toHex(toRgb(h).map(v => v + (255 - v) * k));
 
+const LOOK_SECTIONS = [['quick', '✨ Styles rapides', ['Styles rapides']], ['rendu', '🖌️ Rendu', ['Modèle', 'Rendu', 'Couleur de la silhouette']],
+  ['corps', '🧍 Corps', ['Genre', 'Morphologie', 'Taille', 'Teint']], ['visage', '👀 Visage', ['Yeux', 'Couleur des yeux', 'Lunettes']],
+  ['cheveux', '💇 Cheveux', ['Coiffure', 'Couleur des cheveux']], ['tenue', '👕 Tenue', ['Haut', 'Bas', 'Couleurs de la tenue']]];
+const ACC = new Set(store.get('accOpen', ['acc-train', 'acc-moves', 'look-quick']));
+function accWire(d) {
+  d.open = ACC.has(d.id);
+  d.addEventListener('toggle', () => { if (d.open) ACC.add(d.id); else ACC.delete(d.id); store.set('accOpen', [...ACC]); });
+}
 function renderLook() {
   const box = $('#lookBox'); box.innerHTML = '';
-  const group = (title, el) => { const d = document.createElement('div'); d.className = 'opt'; d.innerHTML = `<h4>${title}</h4>`; d.appendChild(el); box.appendChild(d); };
+  const secs = {};
+  LOOK_SECTIONS.forEach(([k, title]) => {
+    const d = document.createElement('details'); d.className = 'acc'; d.id = 'look-' + k;
+    d.innerHTML = `<summary>${title}</summary><div class="acc-b"></div>`; accWire(d); box.appendChild(d); secs[k] = d.querySelector('.acc-b');
+  });
+  const secOf = title => (LOOK_SECTIONS.find(([, , list]) => list.includes(title)) || ['tenue'])[0];
+  const group = (title, el) => { const d = document.createElement('div'); d.className = 'opt'; d.innerHTML = secOf(title) === 'quick' ? '' : `<h4>${title}</h4>`; d.appendChild(el); secs[secOf(title)].appendChild(d); };
   const swatches = (key, list) => {
     const w = document.createElement('div'); w.className = 'sws';
     list.forEach(col => {
@@ -4979,7 +5054,7 @@ function showTab(t) {
 }
 function openDrawer(t) {
   drawerEl.classList.add('open'); showTab(t);
-  drawerInset = Math.min(420, window.innerWidth * 0.45);
+  drawerInset = window.innerWidth > 640 ? Math.min(420, window.innerWidth * 0.45) : 0;
 }
 function closeDrawer() {
   drawerEl.classList.remove('open'); drawerInset = 0;
@@ -5263,6 +5338,7 @@ window.addEventListener('keydown', e => {
 });
 
 $$('#lookSeg button').forEach(b => b.onclick = () => showLook(b.dataset.l));
+$$('#tab-choreo details.acc').forEach(accWire);
 buildSeq(); renderZone(); renderVariety(); renderGroove(); renderScenes(); renderTrain(); renderChoreo(); renderLook(); renderProgress(); syncPlayBtn(); initStage();
 { const SYNC_KEYS = new Set(['look3', 'board', 'variety', 'zone', 'moves2', 'trMove', 'trBpm', 'trStep', 'trMarks', 'vol', 'nextOn', 'groove', 'scene', 'ytMini', 'tempos', 'lastYT', 'progress']), raw = store.set;
   store.set = (k, v) => { raw(k, v); if (SYNC_KEYS.has(k) && !(k === 'progress' && !PROG._sync)) cloudSaveSoon(); };
