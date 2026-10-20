@@ -138,6 +138,10 @@ button.primary{background:linear-gradient(135deg,var(--pink),var(--violet));bord
 .card span{padding:8px 10px;font-size:13px;font-weight:600;line-height:1.25}
 .card.on{border-color:transparent;box-shadow:0 0 0 2px var(--pink),0 8px 24px rgba(255,61,154,.25)}
 .card:hover{background:rgba(255,255,255,.1)}
+.cards.small{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
+.cards.small .pv{aspect-ratio:16/8;background:radial-gradient(ellipse at 50% 120%,rgba(255,255,255,.12),transparent 60%),#140c2c}
+.bprev{display:block;width:72%;height:42%;border-radius:6px;box-shadow:0 6px 0 -2px rgba(0,0,0,.45),0 10px 18px rgba(0,0,0,.4);transform:perspective(140px) rotateX(28deg)}
+#boardBox h4.h{margin:4px 0 8px;font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:var(--mute);font-weight:600}
 .drawer form{display:flex;gap:8px}
 .drawer input[type=search],.drawer input[type=text],.drawer input[type=password]{flex:1;min-width:0;background:rgba(0,0,0,.28);border:1px solid var(--line);color:var(--ink);
   border-radius:12px;padding:10px 12px;font:inherit;outline:none;width:100%}
@@ -691,7 +695,19 @@ const SCENES = [
 ];
 let sceneId = store.get('scene', 'club');
 if (!SCENES.some(([v]) => v === sceneId)) sceneId = 'club';
-const BOARD_STYLES = [['neon', 'Néon'], ['classic', 'Classique'], ['wood', 'Bois'], ['glass', 'Verre lumineux'], ['white', 'Blanc pro']];
+// modèles de step : [id, nom, aperçu CSS (plateau / liseré / côté)]
+const BOARD_STYLES = [
+  ['neon', 'Néon', 'linear-gradient(180deg,#5a3cc8 0 46%,#27e1ff 46% 52%,#2a1766 52%)'],
+  ['classic', 'Classique', 'linear-gradient(180deg,#26262c 0 46%,#9ca1ab 46% 70%,#5d616a 70%)'],
+  ['wood', 'Bois', 'repeating-linear-gradient(90deg,#c08550 0 22px,#a96f3e 22px 24px),#b07a4c'],
+  ['glass', 'Verre lumineux', 'linear-gradient(180deg,#bfefffcc 0 50%,#27e1ff 50% 54%,#9fd8ee88 54%),#123'],
+  ['white', 'Blanc pro', 'radial-gradient(#ffffff55 1.5px,transparent 2px) 0 0/10px 10px,linear-gradient(180deg,#2ec4b6 0 46%,#eef0f4 46%)'],
+  ['led', 'Piste LED', 'conic-gradient(from 45deg,#ff3d9a 0 25%,#27e1ff 0 50%,#ffd23d 0 75%,#b13bff 0) 0 0/24px 24px'],
+  ['carbon', 'Carbone', 'repeating-linear-gradient(45deg,#1b1b1f 0 6px,#2c2c33 6px 12px),linear-gradient(180deg,#111,#000)'],
+  ['marble', 'Marbre & or', 'linear-gradient(115deg,transparent 40%,#b9b9c288 42%,transparent 45%),linear-gradient(180deg,#f5f3ef 0 44%,#d4a64a 44% 50%,#e9e6e0 50%)'],
+  ['pastel', 'Pastel', 'radial-gradient(#ffffff88 1.5px,transparent 2px) 0 0/10px 10px,linear-gradient(180deg,#ffb7d5 0 50%,#ffffff 50%)'],
+  ['holo', 'Hologramme', 'repeating-linear-gradient(0deg,#27e1ff33 0 2px,transparent 2px 7px),linear-gradient(180deg,#071a2a,#0b2840)'],
+];
 const BOARD_COLS = ['auto', '#27e1ff', '#ff3d9a', '#ffd23d', '#7dff4d', '#b13bff', '#ff7a2f', '#ffffff'];
 const BOARD_DEF = { len: 144, dep: 59, hgt: 27, style: 'neon', color: 'auto' };
 const BOARD = Object.assign({}, BOARD_DEF, store.get('board', {}));
@@ -973,12 +989,15 @@ function renderBoard() {
   const box = $('#boardBox'); if (!box) return;
   box.innerHTML = '';
   const set = (patch, re = true) => { Object.assign(BOARD, patch); store.set('board', BOARD); applyBoard(); if (re) renderBoard(); };
-  const st = document.createElement('div'); st.className = 'chips'; st.style.margin = '0 0 8px';
-  BOARD_STYLES.forEach(([v, label]) => {
-    const b = document.createElement('button'); b.textContent = label; b.className = BOARD.style === v ? 'on' : '';
+  const st = document.createElement('div'); st.className = 'cards small'; st.style.marginBottom = '12px';
+  BOARD_STYLES.forEach(([v, label, prev]) => {
+    const b = document.createElement('button'); b.className = 'card' + (BOARD.style === v ? ' on' : '');
+    b.innerHTML = `<div class="pv"><i class="bprev" style="background:${prev}"></i></div><span>${esc(label)}</span>`;
     b.onclick = () => set({ style: v }); st.appendChild(b);
   });
+  box.appendChild(Object.assign(document.createElement('h4'), { className: 'h', textContent: 'Modèle' }));
   box.appendChild(st);
+  box.appendChild(Object.assign(document.createElement('h4'), { className: 'h', textContent: 'Lumière' }));
   const sw = document.createElement('div'); sw.className = 'sws'; sw.style.marginBottom = '8px';
   BOARD_COLS.forEach(col => {
     const b = document.createElement('button'); b.className = 'sw' + (BOARD.color === col ? ' on' : '');
@@ -986,6 +1005,7 @@ function renderBoard() {
     b.title = col === 'auto' ? 'Lumière : suit la musique' : col; b.onclick = () => set({ color: col }); sw.appendChild(b);
   });
   box.appendChild(sw);
+  box.appendChild(Object.assign(document.createElement('h4'), { className: 'h', textContent: 'Taille' }));
   [['len', 'Longueur', 90, 180], ['dep', 'Profondeur', 35, 75], ['hgt', 'Hauteur', 10, 30]].forEach(([k, label, mn, mx]) => {
     const row = document.createElement('div'); row.className = 'colrow';
     row.innerHTML = `<label style="flex:1">${label} <input type="range" min="${mn}" max="${mx}" step="1" value="${BOARD[k]}" style="flex:1;max-width:none"> <b style="min-width:52px;text-align:right">${BOARD[k]} cm</b></label>`;
@@ -1526,6 +1546,24 @@ function buildStage(T, FX) {
         for (let k = 0; k < 5; k++) { x.beginPath(); for (let px = 0; px <= 128; px += 8) x.lineTo(px, r * 32 + 5 + k * 6 + Math.sin(px * 0.05 + k + r) * 2); x.stroke(); }
         x.fillStyle = 'rgba(60,30,10,.5)'; x.fillRect(0, r * 32, 128, 1.5);
       }
+    } else if (kind === 'carbon') {             // fibre de carbone tissée
+      x.fillStyle = '#141418'; x.fillRect(0, 0, 128, 128);
+      for (let a = 0; a < 128; a += 16) for (let b = 0; b < 128; b += 16) {
+        const gr = x.createLinearGradient(a, b, a + 16, b + 16), on = ((a + b) / 16) % 2;
+        gr.addColorStop(0, on ? '#2c2c34' : '#1c1c22'); gr.addColorStop(1, on ? '#18181d' : '#33333c');
+        x.fillStyle = gr; x.fillRect(a, b, 16, 16);
+      }
+    } else if (kind === 'marble') {             // marbre blanc veiné
+      x.fillStyle = '#f2f0ec'; x.fillRect(0, 0, 128, 128);
+      for (let k = 0; k < 9; k++) {
+        x.strokeStyle = `rgba(${120 + k * 6},${120 + k * 6},${132 + k * 6},${0.18 + (k % 3) * 0.1})`; x.lineWidth = 0.6 + (k % 3) * 0.6;
+        x.beginPath(); let px = Math.random() * 128, py = 0; x.moveTo(px, py);
+        while (py < 128) { px += (Math.random() - 0.5) * 18; py += 6 + Math.random() * 10; x.lineTo(px, py); }
+        x.stroke();
+      }
+    } else if (kind === 'pdots') {              // pastel : picots blancs
+      x.fillStyle = '#ffb7d5'; x.fillRect(0, 0, 128, 128);
+      x.fillStyle = 'rgba(255,255,255,.55)'; for (let a = 4; a < 128; a += 12) for (let b = 4; b < 128; b += 12) { x.beginPath(); x.arc(a + ((b / 12) % 2) * 6, b, 2.4, 0, Math.PI * 2); x.fill(); }
     } else if (kind === 'dots') {               // blanc pro : grip à picots
       x.fillStyle = '#2ec4b6'; x.fillRect(0, 0, 128, 128);
       x.fillStyle = 'rgba(255,255,255,.22)'; for (let a = 4; a < 128; a += 12) for (let b = 4; b < 128; b += 12) { x.beginPath(); x.arc(a + ((b / 12) % 2) * 6, b, 2.2, 0, Math.PI * 2); x.fill(); }
@@ -1538,7 +1576,21 @@ function buildStage(T, FX) {
     const slabT = Math.min(9, BD.h * 0.35), rw = Math.min(30, BD.hx * 0.36);
     return { slabT, rw, rx: BD.hx - rw / 2 - 7, rz: BD.hz - 4 };
   };
-  let boardKey = '', glassMat = null, boardStrips = true;
+  let boardKey = '', glassMat = null, boardStrips = true, ledTiles = null, holo = null;
+  const holoLine = new T.LineBasicMaterial({ color: '#27e1ff', transparent: true, opacity: 0.95 });
+  const roundRect = (w, d, r) => {
+    const sh = new T.Shape(), x = -w / 2, y = -d / 2; r = Math.min(r, w / 2, d / 2);
+    sh.moveTo(x + r, y); sh.lineTo(x + w - r, y); sh.quadraticCurveTo(x + w, y, x + w, y + r); sh.lineTo(x + w, y + d - r);
+    sh.quadraticCurveTo(x + w, y + d, x + w - r, y + d); sh.lineTo(x + r, y + d); sh.quadraticCurveTo(x, y + d, x, y + d - r);
+    sh.lineTo(x, y + r); sh.quadraticCurveTo(x, y, x + r, y); return sh;
+  };
+  // plateau arrondi (bords biseautés) : [dessus/dessous, côtés]
+  const roundSlab = (w, d, h, r, mats) => {
+    const bv = Math.min(2.5, h * 0.3);
+    const geo = new T.ExtrudeGeometry(roundRect(w - 2 * bv, d - 2 * bv, r), { depth: Math.max(0.5, h - 2 * bv), bevelEnabled: true, bevelThickness: bv, bevelSize: bv, bevelSegments: 3, curveSegments: 10 });
+    geo.rotateX(-Math.PI / 2); geo.translate(0, bv, 0);
+    return new T.Mesh(geo, mats);
+  };
   function buildBoard() {
     board.children.slice().forEach(o => {
       board.remove(o); o.geometry && o.geometry.dispose();
@@ -1549,31 +1601,88 @@ function buildStage(T, FX) {
     const M = o => { const m = new T.MeshStandardMaterial(o); m.envMapIntensity = 0.35; return m; };
     const tex = (k, sx, sy) => { const t = bTex(k); t.repeat.set(sx, sy); return t; };
     let top, side, bottom, riser;
-    boardStrips = st === 'neon' || st === 'glass' || st === 'white';
-    if (st === 'classic') {
-      top = M({ map: tex('rubber', W / 26, Dp / 26), roughness: 0.92 }); side = M({ color: '#9ca1ab', roughness: 0.45 });
-      bottom = M({ color: '#5d616a', roughness: 0.6 }); riser = M({ color: '#26262c', roughness: 0.5 });
-    } else if (st === 'wood') {
-      top = M({ map: tex('wood', W / 60, Dp / 30), roughness: 0.55 }); side = M({ color: '#7a4c2a', roughness: 0.6 });
-      bottom = M({ color: '#4a2c16', roughness: 0.7 }); riser = M({ color: '#1b1b1f', roughness: 0.5 });
-    } else if (st === 'glass') {
-      top = new T.MeshPhysicalMaterial({ color: '#bfefff', transparent: true, opacity: 0.6, roughness: 0.08, metalness: 0, clearcoat: 1,
-                                         emissive: new T.Color('#27e1ff'), emissiveIntensity: 0.5, envMapIntensity: 0.9 });
-      side = top; bottom = top; glassMat = top;
-      riser = M({ color: '#d4d9e2', metalness: 1, roughness: 0.22 });
-    } else if (st === 'white') {
-      top = M({ map: tex('dots', W / 30, Dp / 30), roughness: 0.7 }); side = M({ color: '#eef0f4', roughness: 0.4 });
-      bottom = M({ color: '#c9cdd6', roughness: 0.5 }); riser = M({ color: '#d7dbe3', roughness: 0.45 });
-    } else {
-      top = M({ map: tex('grip', W / 18, Dp / 24), roughness: 0.75 }); side = M({ color: '#3a2290', roughness: 0.6 });
-      bottom = M({ color: '#2a1766', roughness: 0.7 }); riser = M({ color: '#241257', roughness: 0.55 });
-    }
-    const slab = new T.Mesh(new T.BoxGeometry(W, g.slabT, Dp), [side, side, top, bottom, side, side]);
-    slab.position.y = H - g.slabT / 2; slab.castShadow = slab.receiveShadow = true; board.add(slab);
-    [-1, 1].forEach(sd => {
-      const r = new T.Mesh(new T.BoxGeometry(g.rw, H - g.slabT, g.rz * 2), riser);
-      r.position.set(sd * g.rx, (H - g.slabT) / 2, 0); r.castShadow = r.receiveShadow = true; board.add(r);
+    ledTiles = null; holo = null;
+    boardStrips = st === 'neon' || st === 'glass' || st === 'white' || st === 'carbon';
+    const add = (m, sh = true) => { m.castShadow = m.receiveShadow = sh; board.add(m); return m; };
+    const legs = (mat, round) => [-1, 1].forEach(sd => {
+      const m = round ? roundSlab(g.rw, g.rz * 2, H - g.slabT, 6, mat) : new T.Mesh(new T.BoxGeometry(g.rw, H - g.slabT, g.rz * 2), mat);
+      if (round) m.position.set(sd * g.rx, 0, 0); else m.position.set(sd * g.rx, (H - g.slabT) / 2, 0);
+      add(m);
     });
+    if (st === 'led') {                         // piste de danse : dalles lumineuses qui suivent le rythme
+      const body = M({ color: '#121219', roughness: 0.3, metalness: 0.6 });
+      const box = new T.Mesh(new T.BoxGeometry(W, H - 1.2, Dp), body); box.position.y = (H - 1.2) / 2; add(box);
+      const cols = Math.max(4, Math.round(W / 22)), rows = Math.max(2, Math.round(Dp / 22)), tw = W / cols, td = Dp / rows;
+      ledTiles = [];
+      for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+        const m = new T.Mesh(new T.BoxGeometry(tw - 1.6, 1.4, td - 1.6), new T.MeshBasicMaterial({ color: '#222' }));
+        m.position.set(-W / 2 + tw * (i + 0.5), H - 0.7, -Dp / 2 + td * (j + 0.5)); m.receiveShadow = true; board.add(m); ledTiles.push({ m, i, j });
+      }
+      return;
+    }
+    if (st === 'marble') {                      // bloc de marbre, arêtes dorées
+      const mtop = M({ map: tex('marble', W / 70, Dp / 70), roughness: 0.18, metalness: 0.05 }), mside = M({ map: tex('marble', W / 70, H / 70), roughness: 0.2 });
+      const box = new T.Mesh(new T.BoxGeometry(W, H, Dp), [mside, mside, mtop, mside, mside, mside]); box.position.y = H / 2; add(box);
+      const gold = M({ color: '#d4a64a', metalness: 1, roughness: 0.22 });
+      [-1, 1].forEach(sd => {
+        const a1 = new T.Mesh(new T.BoxGeometry(W + 1.6, 1.6, 1.6), gold); a1.position.set(0, H - 0.4, sd * (BD.hz + 0.2)); add(a1, false);
+        const b1 = new T.Mesh(new T.BoxGeometry(1.6, 1.6, Dp + 1.6), gold); b1.position.set(sd * (BD.hx + 0.2), H - 0.4, 0); add(b1, false);
+        const c1 = new T.Mesh(new T.BoxGeometry(W + 3, 2.4, 1.8), gold); c1.position.set(0, 1.2, sd * (BD.hz + 0.4)); add(c1, false);
+      });
+      return;
+    }
+    if (st === 'holo') {                        // hologramme : volume translucide, arêtes lumineuses, ligne de balayage
+      const ghost = new T.MeshBasicMaterial({ color: '#27e1ff', transparent: true, opacity: 0.1, depthWrite: false, blending: T.AdditiveBlending });
+      const slab = new T.Mesh(new T.BoxGeometry(W, g.slabT, Dp), ghost); slab.position.y = H - g.slabT / 2; board.add(slab);
+      const edges = (geo, pos) => { const l = new T.LineSegments(new T.EdgesGeometry(geo), holoLine); l.position.copy(pos); board.add(l); };
+      edges(new T.BoxGeometry(W, g.slabT, Dp), new T.Vector3(0, H - g.slabT / 2, 0));
+      [-1, 1].forEach(sd => {
+        const geo = new T.BoxGeometry(g.rw, H - g.slabT, g.rz * 2), pos = new T.Vector3(sd * g.rx, (H - g.slabT) / 2, 0);
+        const r = new T.Mesh(geo, ghost); r.position.copy(pos); board.add(r); edges(geo, pos);
+      });
+      const grid = new T.GridHelper(Math.max(W, Dp), 12, 0x27e1ff, 0x27e1ff); grid.scale.set(W / Math.max(W, Dp), 1, Dp / Math.max(W, Dp));
+      grid.material.transparent = true; grid.material.opacity = 0.35; grid.position.y = H + 0.2; board.add(grid);
+      const scan = new T.Mesh(new T.PlaneGeometry(W + 4, Dp + 4), new T.MeshBasicMaterial({ color: '#27e1ff', transparent: true, opacity: 0.35, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending }));
+      scan.rotation.x = -Math.PI / 2; board.add(scan);
+      holo = { scan, ghost, grid, H };
+      return;
+    }
+    if (st === 'carbon') {                      // fibre de carbone, plateau arrondi, pieds chromés arrondis
+      top = M({ map: tex('carbon', 1 / 14, 1 / 14), roughness: 0.32, metalness: 0.35 }); side = M({ color: '#0d0d10', roughness: 0.25, metalness: 0.5 });
+      add(roundSlab(W, Dp, g.slabT, 9, [top, side])).position.y = H - g.slabT;
+      legs(M({ color: '#d8dbe2', metalness: 1, roughness: 0.18 }), true);
+    } else if (st === 'pastel') {               // pastel : plateau rose arrondi à picots, pieds blancs arrondis
+      top = M({ map: tex('pdots', 1 / 26, 1 / 26), roughness: 0.75 }); side = M({ color: '#ffc9df', roughness: 0.6 });
+      add(roundSlab(W, Dp, g.slabT, 14, [top, side])).position.y = H - g.slabT;
+      legs(M({ color: '#ffffff', roughness: 0.45 }), true);
+      return;
+    } else {
+      if (st === 'classic') {
+        top = M({ map: tex('rubber', W / 26, Dp / 26), roughness: 0.92 }); side = M({ color: '#9ca1ab', roughness: 0.45 });
+        bottom = M({ color: '#5d616a', roughness: 0.6 }); riser = M({ color: '#26262c', roughness: 0.5 });
+      } else if (st === 'wood') {
+        top = M({ map: tex('wood', W / 60, Dp / 30), roughness: 0.55 }); side = M({ color: '#7a4c2a', roughness: 0.6 });
+        bottom = M({ color: '#4a2c16', roughness: 0.7 }); riser = M({ color: '#1b1b1f', roughness: 0.5 });
+      } else if (st === 'glass') {
+        top = new T.MeshPhysicalMaterial({ color: '#bfefff', transparent: true, opacity: 0.6, roughness: 0.08, metalness: 0, clearcoat: 1,
+                                           emissive: new T.Color('#27e1ff'), emissiveIntensity: 0.5, envMapIntensity: 0.9 });
+        side = top; bottom = top; glassMat = top;
+        riser = M({ color: '#d4d9e2', metalness: 1, roughness: 0.22 });
+      } else if (st === 'white') {
+        top = M({ map: tex('dots', W / 30, Dp / 30), roughness: 0.7 }); side = M({ color: '#eef0f4', roughness: 0.4 });
+        bottom = M({ color: '#c9cdd6', roughness: 0.5 }); riser = M({ color: '#d7dbe3', roughness: 0.45 });
+      } else {
+        top = M({ map: tex('grip', W / 18, Dp / 24), roughness: 0.75 }); side = M({ color: '#3a2290', roughness: 0.6 });
+        bottom = M({ color: '#2a1766', roughness: 0.7 }); riser = M({ color: '#241257', roughness: 0.55 });
+      }
+      const slab = new T.Mesh(new T.BoxGeometry(W, g.slabT, Dp), [side, side, top, bottom, side, side]);
+      slab.position.y = H - g.slabT / 2; slab.castShadow = slab.receiveShadow = true; board.add(slab);
+      [-1, 1].forEach(sd => {
+        const r = new T.Mesh(new T.BoxGeometry(g.rw, H - g.slabT, g.rz * 2), riser);
+        r.position.set(sd * g.rx, (H - g.slabT) / 2, 0); r.castShadow = r.receiveShadow = true; board.add(r);
+      });
+
+    }
     if (boardStrips) {                          // liserés lumineux autour du plateau
       const y = H - Math.min(1.2, g.slabT * 0.15), t = st === 'white' ? 1.4 : 2.4;
       [-1, 1].forEach(sd => {
@@ -3284,6 +3393,20 @@ function buildStage(T, FX) {
     E.update(P, c1, c2, c3, dim);
     const bk = JSON.stringify(BOARD); if (bk !== boardKey) { boardKey = bk; buildBoard(); }
     neonMat.color.set(BOARD.color === 'auto' ? c3 : BOARD.color);
+    holoLine.color.copy(neonMat.color);
+    if (ledTiles) {                               // piste LED : motif qui change à chaque temps, dalles qui pulsent
+      const beat = Math.floor(b), acc = BOARD.color === 'auto' ? '#ffd23d' : BOARD.color;
+      ledTiles.forEach(({ m, i, j }) => {
+        const on = (i * 7 + j * 3 + beat * 5) % 5 < 2 || (i + j + beat) % 6 === 0, k = (i + 2 * j + beat) % 4;
+        if (!on) { m.material.color.set('#16161f'); return; }
+        m.material.color.set(k === 0 ? c2 : k === 1 ? c3 : k === 2 ? acc : '#b13bff').multiplyScalar((0.55 + 0.75 * pulse) * dim);
+      });
+    }
+    if (holo) {
+      holo.scan.position.y = (Math.sin(P.tsec * 1.7) * 0.5 + 0.5) * holo.H;
+      holo.ghost.color.copy(neonMat.color); holo.ghost.opacity = 0.06 + 0.1 * pulse;
+      holo.grid.material.color.copy(neonMat.color); holo.scan.material.color.copy(neonMat.color);
+    }
     if (glassMat) { glassMat.emissive.set(BOARD.color === 'auto' ? c2 : BOARD.color); glassMat.emissiveIntensity = (0.3 + 0.8 * pulse) * dim; }
 
     // personnage : modèle 3D réaliste (squelette) si chargé et demandé, sinon personnage manga dessiné
